@@ -2,6 +2,8 @@
 
 # CavemanTcp
 
+[![NuGet Version](https://img.shields.io/nuget/v/CavemanTcp.svg?style=flat)](https://www.nuget.org/packages/CavemanTcp/) [![NuGet](https://img.shields.io/nuget/dt/CavemanTcp.svg)](https://www.nuget.org/packages/CavemanTcp) 
+
 CavemanTcp gives you the ultimate control in building TCP-based communication channels between clients and servers.  With CavemanTcp, you have full control over reading and writing data.  CavemanTcp is designed for those that want explicit control over when data is read or written to a socket between client and server.
 
 Important:
