@@ -12,6 +12,10 @@ Important:
 - If you are looking for a package that will continually read data and raise events when data is received, see SimpleTcp: https://github.com/jchristn/simpletcp
 - If you are looking for an all-in-one package that handles delivery of well-formed application-layer messages, see WatsonTcp: https://github.com/jchristn/watsontcp
 
+## Disconnection Handling
+
+Since CavemanTcp relies on the consuming application to specify when to read or write, there are no background threads continually monitoring the state of the TCP connection (unlike SimpleTcp and WatsonTcp).  Thus, you should build your apps on the expectation that an exception may be thrown while in the middle of a read or write.
+
 ## New in v1.0.0
 
 - Initial release
@@ -81,10 +85,6 @@ client.Send("Hello, world!");
 // Read [count] bytes of data from server
 byte[] data = client.Read([count]);
 ```
-
-## Disconnection
-
-Since CavemanTcp relies on the consuming application to specify when to read or write, there are no background threads continually monitoring the state of the TCP connection.  Thus, you should build your apps on the expectation that an exception may be thrown while in the middle of a read or write.
 
 ## Help or Feedback
 
