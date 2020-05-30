@@ -4,10 +4,12 @@
 
 [![NuGet Version](https://img.shields.io/nuget/v/CavemanTcp.svg?style=flat)](https://www.nuget.org/packages/CavemanTcp/) [![NuGet](https://img.shields.io/nuget/dt/CavemanTcp.svg)](https://www.nuget.org/packages/CavemanTcp) 
 
-CavemanTcp gives you the ultimate control in building TCP-based communication channels between clients and servers.  With CavemanTcp, you have full control over reading and writing data.  CavemanTcp is designed for those that want explicit control over when data is read or written to a socket between client and server.
+CavemanTcp gives you the ultimate control in building TCP-based applications involving clients and servers.  
+
+With CavemanTcp, you have full control over reading and writing data.  CavemanTcp is designed for those that want explicit control over when data is read or written or want to build a state machine on top of TCP.
 
 Important:
-- If you are looking for a package that will continually read data and raise events, see SimpleTcp: https://github.com/jchristn/simpletcp
+- If you are looking for a package that will continually read data and raise events when data is received, see SimpleTcp: https://github.com/jchristn/simpletcp
 - If you are looking for an all-in-one package that handles delivery of well-formed application-layer messages, see WatsonTcp: https://github.com/jchristn/watsontcp
 
 ## New in v1.0.0
