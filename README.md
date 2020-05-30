@@ -36,11 +36,11 @@ server.ClientDisconnected += (s, e) =>
 // Start server
 server.Start(); 
 
-// Send data
-server.Send("[IP:Port]", "[Data]");					// send [Data] to [IP:Port]
+// Send [Data] to client at [IP:Port] 
+server.Send("[IP:Port]", "[Data]");
 
-// Receive data
-byte[] data = server.Read("[IP:Port]", [count]);	// read [count] bytes from [IP:Port]
+// Receive [count] bytes of data from client at [IP:Port]
+byte[] data = server.Read("[IP:Port]", [count]);
 
 // List clients
 List<string> clients = server.GetClients().ToList();
@@ -71,11 +71,11 @@ client.ClientDisconnected += (s, e) =>
 // Connect to server
 client.Connect(10);
 
-// Send data
+// Send data to server
 client.Send("Hello, world!");
 
-// Receive data
-byte[] data = client.Read(24);
+// Read [count] bytes of data from server
+byte[] data = client.Read([count]);
 ```
 
 ## Disconnection
