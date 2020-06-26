@@ -28,7 +28,9 @@ namespace Test.Server
                 Console.WriteLine("Client " + e.IpPort + " disconnected from server"); 
             }; 
 
-            _Server.Start(); 
+            _Server.Start();
+
+            Console.WriteLine("Listening on tcp://127.0.0.1:8000");
 
             while (_RunForever)
             {
@@ -95,9 +97,8 @@ namespace Test.Server
                     string[] parts = userInput.Split(new char[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
                     string ipPort = parts[1];
                     int count = Convert.ToInt32(parts[2]);
-
-                    byte[] data = _Server.Read(ipPort, count);
-                    Console.WriteLine("Retrieved " + data.Length + " bytes: " + Encoding.UTF8.GetString(data));
+                    string data = _Server.ReadString(ipPort, count);
+                    Console.WriteLine("Retrieved " + data.Length + " bytes: " + data);
                 }
 
                 if (userInput.StartsWith("kick "))

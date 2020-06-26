@@ -30,6 +30,8 @@ namespace Test.SslServer
 
             _Server.Start();
 
+            Console.WriteLine("Listening on ssl://127.0.0.1:8000");
+
             while (_RunForever)
             {
                 Console.Write("Command [? for help]: ");
@@ -94,10 +96,9 @@ namespace Test.SslServer
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
                     string ipPort = parts[1];
-                    int count = Convert.ToInt32(parts[2]);
-
-                    byte[] data = _Server.Read(ipPort, count);
-                    Console.WriteLine("Retrieved " + data.Length + " bytes: " + Encoding.UTF8.GetString(data));
+                    int count = Convert.ToInt32(parts[2]); 
+                    string data = _Server.ReadString(ipPort, count);
+                    Console.WriteLine("Retrieved " + data.Length + " bytes: " + data);
                 }
 
                 if (userInput.StartsWith("kick "))

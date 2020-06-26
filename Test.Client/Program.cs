@@ -24,8 +24,9 @@ namespace Test.Client
                 Console.WriteLine("Disconnected from server"); 
             };
 
+            Console.WriteLine("Connecting to tcp://127.0.0.1:8000");
             _Client.Connect(10);
-
+            
             while (_RunForever)
             { 
                 Console.Write("Command [? for help]: ");
@@ -69,10 +70,9 @@ namespace Test.Client
                 if (userInput.StartsWith("read "))
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
-                    int count = Convert.ToInt32(parts[1]);
-
-                    byte[] data = _Client.Read(count);
-                    Console.WriteLine("Retrieved " + data.Length + " bytes: " + Encoding.UTF8.GetString(data));
+                    int count = Convert.ToInt32(parts[1]); 
+                    string data = _Client.ReadString(count);
+                    Console.WriteLine("Retrieved " + data.Length + " bytes: " + data);
                 }
 
                 if (userInput.Equals("dispose"))

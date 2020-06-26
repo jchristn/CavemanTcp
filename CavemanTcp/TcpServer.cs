@@ -21,7 +21,23 @@ namespace CavemanTcp
     public class TcpServer : IDisposable
     {
         #region Public-Members
-          
+
+        /// <summary>
+        /// Buffer size to use while interacting with streams.
+        /// </summary>
+        public int StreamBufferSize
+        {
+            get
+            {
+                return _StreamBufferSize;
+            }
+            set
+            {
+                if (value < 1) throw new ArgumentException("StreamBufferSize must be greater than zero.");
+                _StreamBufferSize = value;
+            }
+        }
+
         /// <summary>
         /// Enable or disable acceptance of invalid SSL certificates.
         /// </summary>
@@ -56,6 +72,7 @@ namespace CavemanTcp
 
         #region Private-Members
 
+        private int _StreamBufferSize = 65536;
         private string _Header = "[CavemanTcp.Server] ";
         private bool _Running = false;
         private string _ListenerIp;
@@ -197,47 +214,44 @@ namespace CavemanTcp
         /// Send data to the specified client by IP:port.
         /// </summary>
         /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="data">String containing data to send.</param>
+        public void Send(string ipPort, string data)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
+            MemoryStream ms = new MemoryStream();
+            byte[] bytes = Encoding.UTF8.GetBytes(data);
+            ms.Write(bytes, 0, bytes.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            SendInternal(ipPort, bytes.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port string.</param>
         /// <param name="data">Byte array containing data to send.</param>
         public void Send(string ipPort, byte[] data)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            MemoryStream ms = new MemoryStream(); 
+            ms.Write(data, 0, data.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            SendInternal(ipPort, data.Length, ms);
+        }
 
-            ClientMetadata client = null;
-
-            lock (_ClientsLock)
-            {
-                if (!_Clients.ContainsKey(ipPort))
-                {
-                    throw new KeyNotFoundException("Client with IP:port of " + ipPort + " not found.");
-                }
-
-                client = _Clients[ipPort];
-            }
-
-            lock (client.SendLock)
-            {
-                try
-                {
-                    if (!_Ssl)
-                    {
-                        client.NetworkStream.Write(data, 0, data.Length);
-                        client.NetworkStream.Flush();
-                    }
-                    else
-                    {
-                        client.SslStream.Write(data, 0, data.Length);
-                        client.SslStream.Flush();
-                    }
-                }
-                catch (Exception)
-                {
-                    ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Normal));
-                    throw;
-                }
-            }
-
-            Stats.SentBytes += data.Length;
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="contentLength">Number of bytes to send from the stream.</param>
+        /// <param name="stream">Stream containing data to send.</param>
+        public void Send(string ipPort, long contentLength, Stream stream)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (contentLength < 1 || stream == null || !stream.CanRead) return;
+            SendInternal(ipPort, contentLength, stream);
         }
 
         /// <summary>
@@ -245,11 +259,43 @@ namespace CavemanTcp
         /// </summary>
         /// <param name="ipPort">The client IP:port string.</param>
         /// <param name="data">String containing data to send.</param>
-        public void Send(string ipPort, string data)
+        public async Task SendAsync(string ipPort, string data)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
-            Send(ipPort, Encoding.UTF8.GetBytes(data));
+            MemoryStream ms = new MemoryStream();
+            byte[] bytes = Encoding.UTF8.GetBytes(data);
+            await ms.WriteAsync(bytes, 0, bytes.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            await SendInternalAsync(ipPort, bytes.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="data">Byte array containing data to send.</param>
+        public async Task SendAsync(string ipPort, byte[] data)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            MemoryStream ms = new MemoryStream();
+            await ms.WriteAsync(data, 0, data.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            await SendInternalAsync(ipPort, data.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="contentLength">Number of bytes to send from the stream.</param>
+        /// <param name="stream">Stream containing data to send.</param>
+        public async Task SendAsync(string ipPort, long contentLength, Stream stream)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (contentLength < 1 || stream == null || !stream.CanRead) return;
+            await SendInternalAsync(ipPort, contentLength, stream);
         }
 
         /// <summary>
@@ -287,13 +333,98 @@ namespace CavemanTcp
         /// </summary>
         /// <param name="ipPort">The client IP:port string.</param>
         /// <param name="count">The number of bytes to read.</param>
-        /// <returns>Byte array.</returns>
-        public byte[] Read(string ipPort, int count)
+        /// <returns>String.</returns>
+        public string ReadString(string ipPort, int count)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
 
-            int bytesRemaining = count; 
+            MemoryStream ms = ReadInternal(ipPort, count);
+            return Encoding.UTF8.GetString(Common.StreamToBytes(ms));
+        }
+
+        /// <summary>
+        /// Read data from a given client.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>Byte array.</returns>
+        public byte[] ReadBytes(string ipPort, int count)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+
+            MemoryStream ms = ReadInternal(ipPort, count);
+            return Common.StreamToBytes(ms);
+        }
+
+        /// <summary>
+        /// Read bytes from the client into a stream.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>MemoryStrema.</returns>
+        public MemoryStream ReadStream(string ipPort, int count)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+
+            return ReadInternal(ipPort, count);
+        }
+
+        /// <summary>
+        /// Read data from a given client.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>String.</returns>
+        public async Task<string> ReadStringAsync(string ipPort, int count)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+
+            MemoryStream ms = await ReadInternalAsync(ipPort, count);
+            return Encoding.UTF8.GetString(Common.StreamToBytes(ms));
+        }
+
+        /// <summary>
+        /// Read data from a given client.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>Byte array.</returns>
+        public async Task<byte[]> ReadBytesAsync(string ipPort, int count)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+
+            MemoryStream ms = await ReadInternalAsync(ipPort, count);
+            return Common.StreamToBytes(ms);
+        }
+
+        /// <summary>
+        /// Read bytes from the client into a stream.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>MemoryStrema.</returns>
+        public async Task<MemoryStream> ReadStreamAsync(string ipPort, int count)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+
+            return await ReadInternalAsync(ipPort, count);
+        }
+
+        /// <summary>
+        /// Get direct access to the underlying client stream.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <returns>Stream.</returns>
+        public Stream GetStream(string ipPort)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+
             ClientMetadata client = null;
 
             lock (_ClientsLock)
@@ -305,68 +436,9 @@ namespace CavemanTcp
 
                 client = _Clients[ipPort];
             }
-              
-            if (client.Token.IsCancellationRequested) throw new OperationCanceledException();
-            if (!client.NetworkStream.CanRead) throw new IOException("Cannot read from network stream for client " + ipPort + ".");
-            if (_Ssl && !client.SslStream.CanRead) throw new IOException("Cannot read from SSL stream for client " + ipPort + ".");
 
-            byte[] buffer = new byte[count];
-            int read = 0;
-
-            try
-            {
-                if (!_Ssl)
-                {
-                    using (MemoryStream ms = new MemoryStream())
-                    {
-                        while (bytesRemaining > 0)
-                        {
-                            read = client.NetworkStream.Read(buffer, 0, buffer.Length);
-                            if (read > 0)
-                            {
-                                ms.Write(buffer, 0, read);
-                                bytesRemaining -= read;
-                            }
-                            else
-                            {
-                                throw new SocketException();
-                            }
-                        }
-
-                        byte[] data = ms.ToArray();
-                        Stats.ReceivedBytes += data.Length;
-                        return data;
-                    }
-                }
-                else
-                {
-                    using (MemoryStream ms = new MemoryStream())
-                    {
-                        while (bytesRemaining > 0)
-                        {
-                            read = client.SslStream.Read(buffer, 0, buffer.Length);
-                            if (read > 0)
-                            {
-                                ms.Write(buffer, 0, read); 
-                                bytesRemaining -= read;
-                            }
-                            else
-                            {
-                                throw new SocketException();
-                            }
-                        }
-
-                        byte[] data = ms.ToArray();
-                        Stats.ReceivedBytes += data.Length;
-                        return data;
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Normal));
-                throw;
-            }
+            if (!_Ssl) return client.NetworkStream;
+            else return client.SslStream;
         }
 
         #endregion
@@ -557,6 +629,256 @@ namespace CavemanTcp
                     break;
                 }
             }
+        }
+
+        private void SendInternal(string ipPort, long contentLength, Stream stream)
+        {
+            ClientMetadata client = null;
+
+            lock (_ClientsLock)
+            {
+                if (!_Clients.ContainsKey(ipPort))
+                {
+                    throw new KeyNotFoundException("Client with IP:port of " + ipPort + " not found.");
+                }
+
+                client = _Clients[ipPort];
+            }
+
+            try
+            {
+                client.WriteSemaphore.Wait(1);
+
+                if (contentLength > 0 && stream != null && stream.CanRead)
+                {
+                    long bytesRemaining = contentLength;
+
+                    while (bytesRemaining > 0)
+                    {
+                        byte[] buffer = new byte[_StreamBufferSize];
+                        int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                        if (bytesRead > 0)
+                        {
+                            byte[] data = null;
+                            if (bytesRead == buffer.Length)
+                            {
+                                data = new byte[buffer.Length];
+                                Buffer.BlockCopy(buffer, 0, data, 0, buffer.Length);
+                            }
+                            else
+                            {
+                                data = new byte[bytesRead];
+                                Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
+                            }
+
+                            if (!_Ssl)
+                            {
+                                client.NetworkStream.Write(data, 0, data.Length);
+                                client.NetworkStream.Flush();
+                            }
+                            else
+                            {
+                                client.SslStream.Write(data, 0, data.Length);
+                                client.SslStream.Flush();
+                            }
+
+                            bytesRemaining -= bytesRead;
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Normal));
+                throw;
+            }
+            finally
+            {
+                client.WriteSemaphore.Release();
+            }
+
+            Stats.SentBytes += contentLength;
+        }
+
+        private async Task SendInternalAsync(string ipPort, long contentLength, Stream stream)
+        {
+            ClientMetadata client = null;
+
+            lock (_ClientsLock)
+            {
+                if (!_Clients.ContainsKey(ipPort))
+                {
+                    throw new KeyNotFoundException("Client with IP:port of " + ipPort + " not found.");
+                }
+
+                client = _Clients[ipPort];
+            }
+
+            try
+            {
+                client.WriteSemaphore.Wait(1);
+
+                if (contentLength > 0 && stream != null && stream.CanRead)
+                {
+                    long bytesRemaining = contentLength;
+
+                    while (bytesRemaining > 0)
+                    {
+                        byte[] buffer = new byte[_StreamBufferSize];
+                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                        if (bytesRead > 0)
+                        {
+                            byte[] data = null;
+                            if (bytesRead == buffer.Length)
+                            {
+                                data = new byte[buffer.Length];
+                                Buffer.BlockCopy(buffer, 0, data, 0, buffer.Length);
+                            }
+                            else
+                            {
+                                data = new byte[bytesRead];
+                                Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
+                            }
+
+                            if (!_Ssl)
+                            {
+                                await client.NetworkStream.WriteAsync(data, 0, data.Length);
+                                await client.NetworkStream.FlushAsync();
+                            }
+                            else
+                            {
+                                await client.SslStream.WriteAsync(data, 0, data.Length);
+                                await client.SslStream.FlushAsync();
+                            }
+
+                            bytesRemaining -= bytesRead;
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Normal));
+                throw;
+            }
+            finally
+            {
+                client.WriteSemaphore.Release();
+            }
+
+            Stats.SentBytes += contentLength;
+        }
+
+        private MemoryStream ReadInternal(string ipPort, long count)
+        {
+            if (count < 1) return null;
+
+            ClientMetadata client = null;
+
+            lock (_ClientsLock)
+            {
+                if (!_Clients.ContainsKey(ipPort))
+                {
+                    throw new KeyNotFoundException("Client with IP:port of " + ipPort + " not found.");
+                }
+
+                client = _Clients[ipPort];
+            }
+
+            try
+            {
+                client.ReadSemaphore.Wait(1);
+                MemoryStream ms = new MemoryStream();
+                long bytesRemaining = count;
+
+                while (bytesRemaining > 0)
+                {
+                    byte[] buffer = null;
+                    if (bytesRemaining >= _StreamBufferSize) buffer = new byte[_StreamBufferSize];
+                    else buffer = new byte[bytesRemaining];
+
+                    int bytesRead = 0;
+                    if (!_Ssl) bytesRead = client.NetworkStream.Read(buffer, 0, buffer.Length);
+                    else bytesRead = client.SslStream.Read(buffer, 0, buffer.Length);
+
+                    if (bytesRead > 0)
+                    {
+                        if (bytesRead == buffer.Length) ms.Write(buffer, 0, buffer.Length);
+                        else ms.Write(buffer, 0, bytesRead);
+
+                        bytesRemaining -= bytesRead;
+                    }
+                }
+
+                Stats.ReceivedBytes += count;
+                ms.Seek(0, SeekOrigin.Begin);
+                return ms;
+            }
+            catch (Exception)
+            {
+                ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Normal));
+                throw;
+            }
+            finally
+            {
+                client.ReadSemaphore.Release();
+            } 
+        }
+
+        private async Task<MemoryStream> ReadInternalAsync(string ipPort, long count)
+        {
+            if (count < 1) return null;
+
+            ClientMetadata client = null;
+
+            lock (_ClientsLock)
+            {
+                if (!_Clients.ContainsKey(ipPort))
+                {
+                    throw new KeyNotFoundException("Client with IP:port of " + ipPort + " not found.");
+                }
+
+                client = _Clients[ipPort];
+            }
+
+            try
+            {
+                await client.ReadSemaphore.WaitAsync(1);
+                MemoryStream ms = new MemoryStream();
+                long bytesRemaining = count;
+
+                while (bytesRemaining > 0)
+                {
+                    byte[] buffer = null;
+                    if (bytesRemaining >= _StreamBufferSize) buffer = new byte[_StreamBufferSize];
+                    else buffer = new byte[bytesRemaining];
+
+                    int bytesRead = 0;
+                    if (!_Ssl) bytesRead = await client.NetworkStream.ReadAsync(buffer, 0, buffer.Length);
+                    else bytesRead = await client.SslStream.ReadAsync(buffer, 0, buffer.Length);
+
+                    if (bytesRead > 0)
+                    {
+                        if (bytesRead == buffer.Length) await ms.WriteAsync(buffer, 0, buffer.Length);
+                        else await ms.WriteAsync(buffer, 0, bytesRead);
+
+                        bytesRemaining -= bytesRead;
+                    }
+                }
+
+                Stats.ReceivedBytes += count;
+                ms.Seek(0, SeekOrigin.Begin);
+                return ms;
+            }
+            catch (Exception)
+            {
+                ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Normal));
+                throw;
+            }
+            finally
+            {
+                client.ReadSemaphore.Release();
+            } 
         }
 
         #endregion

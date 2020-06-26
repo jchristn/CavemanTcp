@@ -9,7 +9,7 @@ namespace CavemanTcp
 {
     internal class ClientMetadata : IDisposable
     {
-        #region Public-Members
+        #region Internal-Members
 
         internal System.Net.Sockets.TcpClient Client
         {
@@ -32,9 +32,14 @@ namespace CavemanTcp
             get { return _IpPort; }
         }
 
-        internal object SendLock
+        internal SemaphoreSlim ReadSemaphore
         {
-            get { return _Lock; }
+            get { return _ReadSemaphore; }
+        }
+
+        internal SemaphoreSlim WriteSemaphore
+        {
+            get { return _WriteSemaphore; }
         }
 
         internal CancellationTokenSource TokenSource { get; set; }
@@ -49,7 +54,8 @@ namespace CavemanTcp
         private NetworkStream _NetworkStream = null;
         private SslStream _SslStream = null;
         private string _IpPort = null;
-        private readonly object _Lock = new object();
+        private SemaphoreSlim _ReadSemaphore = new SemaphoreSlim(1);
+        private SemaphoreSlim _WriteSemaphore = new SemaphoreSlim(1);
 
         #endregion
 
@@ -81,16 +87,12 @@ namespace CavemanTcp
 
             if (_SslStream != null)
             {
-                _SslStream.Close();
-                _SslStream.Dispose();
-                _SslStream = null;
+                _SslStream.Close();  
             }
 
             if (_NetworkStream != null)
             {
-                _NetworkStream.Close();
-                _NetworkStream.Dispose();
-                _NetworkStream = null;
+                _NetworkStream.Close(); 
             }
 
             if (_TcpClient != null)

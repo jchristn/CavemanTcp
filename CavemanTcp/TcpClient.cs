@@ -22,6 +22,22 @@ namespace CavemanTcp
         #region Public-Members
 
         /// <summary>
+        /// Buffer size to use while interacting with streams.
+        /// </summary>
+        public int StreamBufferSize
+        {
+            get
+            {
+                return _StreamBufferSize;
+            }
+            set
+            {
+                if (value < 1) throw new ArgumentException("StreamBufferSize must be greater than zero.");
+                _StreamBufferSize = value;
+            }
+        }
+
+        /// <summary>
         /// Event to fire when the client connects.
         /// </summary>
         public event EventHandler ClientConnected;
@@ -55,6 +71,7 @@ namespace CavemanTcp
 
         #region Private-Members
 
+        private int _StreamBufferSize = 65536;
         private string _Header = "[CavemanTcp.Client] ";
         private string _ServerIp = null;
         private int _ServerPort = 0;
@@ -69,7 +86,8 @@ namespace CavemanTcp
         private X509Certificate2 _SslCert;
         private X509Certificate2Collection _SslCertCollection;
 
-        private readonly object _SendLock = new object();  
+        private SemaphoreSlim _WriteSemaphore = new SemaphoreSlim(1);
+        private SemaphoreSlim _ReadSemaphore = new SemaphoreSlim(1);
          
         #endregion
 
@@ -206,119 +224,190 @@ namespace CavemanTcp
 
         /// <summary>
         /// Send data to the server.
-        /// </summary> 
-        /// <param name="data">Byte array containing data to send.</param>
-        public void Send(byte[] data)
-        {
-            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
-            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
-
-            try
-            {
-                lock (_SendLock)
-                {
-                    if (!_Ssl)
-                    {
-                        _NetworkStream.Write(data, 0, data.Length);
-                        _NetworkStream.Flush();
-                    }
-                    else
-                    {
-                        _SslStream.Write(data, 0, data.Length);
-                        _SslStream.Flush();
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                ClientDisconnected?.Invoke(this, EventArgs.Empty);
-                throw;
-            }
-
-            Stats.SentBytes += data.Length;
-        }
-         
-        /// <summary>
-        /// Send data to the server.
         /// </summary>
         /// <param name="data">String data.</param>
         public void Send(string data)
         {
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
             if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
-            Send(Encoding.UTF8.GetBytes(data));
+            MemoryStream ms = new MemoryStream();
+            byte[] bytes = Encoding.UTF8.GetBytes(data);
+            ms.Write(bytes, 0, bytes.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            SendInternal(bytes.Length, ms);
         }
 
         /// <summary>
-        /// Read data from the server.
+        /// Send data to the server.
+        /// </summary> 
+        /// <param name="data">Byte array containing data to send.</param>
+        public void Send(byte[] data)
+        {
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            MemoryStream ms = new MemoryStream(); 
+            ms.Write(data, 0, data.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            SendInternal(data.Length, ms); 
+        }
+
+        /// <summary>
+        /// Send data to the server.
+        /// </summary> 
+        /// <param name="contentLength">Number of bytes to send from the stream.</param>
+        /// <param name="stream">Stream containing data.</param>
+        public void Send(long contentLength, Stream stream)
+        {
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
+            if (contentLength < 1 || stream == null || !stream.CanRead) return;
+            SendInternal(contentLength, stream);
+        }
+
+        /// <summary>
+        /// Send data to the server.
+        /// </summary>
+        /// <param name="data">String data.</param>
+        public async Task SendAsync(string data)
+        {
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
+            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
+            MemoryStream ms = new MemoryStream();
+            byte[] bytes = Encoding.UTF8.GetBytes(data);
+            await ms.WriteAsync(bytes, 0, bytes.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            await SendInternalAsync(bytes.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the server.
+        /// </summary> 
+        /// <param name="data">Byte array containing data to send.</param>
+        public async Task SendAsync(byte[] data)
+        {
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            MemoryStream ms = new MemoryStream();
+            await ms.WriteAsync(data, 0, data.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            await SendInternalAsync(data.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the server.
+        /// </summary> 
+        /// <param name="contentLength">Number of bytes to send from the stream.</param>
+        /// <param name="stream">Stream containing data.</param>
+        public async Task SendAsync(long contentLength, Stream stream)
+        {
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
+            if (contentLength < 1 || stream == null || !stream.CanRead) return;
+            await SendInternalAsync(contentLength, stream);
+        }
+
+        /// <summary>
+        /// Read string from the server.
         /// </summary>
         /// <param name="count">The number of bytes to read.</param>
-        /// <returns>Byte array.</returns>
-        public byte[] Read(int count)
+        /// <returns>String.</returns>
+        public string ReadString(int count)
         {
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
             if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
             if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
             if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
 
-            byte[] buffer = new byte[count];
-            int bytesRemaining = count;
-            int read = 0;
+            Stream ms = ReadInternal(count);
+            return Encoding.UTF8.GetString(Common.StreamToBytes(ms));
+        }
 
-            try
-            {
-                if (!_Ssl)
-                {
-                    using (MemoryStream ms = new MemoryStream())
-                    {
-                        while (bytesRemaining > 0)
-                        {
-                            read = _NetworkStream.Read(buffer, 0, buffer.Length);
-                            if (read > 0)
-                            {
-                                ms.Write(buffer, 0, read);
-                                bytesRemaining -= read;
-                            }
-                            else
-                            {
-                                throw new SocketException();
-                            }
-                        }
+        /// <summary>
+        /// Read bytes from the server.
+        /// </summary>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>Byte array.</returns>
+        public byte[] ReadBytes(int count)
+        {
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
+            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
 
-                        byte[] data = ms.ToArray();
-                        Stats.ReceivedBytes += data.Length;
-                        return data;
-                    }
-                }
-                else
-                {
-                    using (MemoryStream ms = new MemoryStream())
-                    {
-                        while (bytesRemaining > 0)
-                        {
-                            read = _SslStream.Read(buffer, 0, buffer.Length);
+            Stream ms = ReadInternal(count);
+            return Common.StreamToBytes(ms);
+        }
 
-                            if (read > 0)
-                            {
-                                ms.Write(buffer, 0, read);
-                                bytesRemaining -= read;
-                            }
-                            else
-                            {
-                                throw new SocketException();
-                            }
-                        }
+        /// <summary>
+        /// Read bytes from the server into a stream.
+        /// </summary>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>MemoryStrema.</returns>
+        public MemoryStream ReadStream(int count)
+        {
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
+            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
 
-                        byte[] data = ms.ToArray();
-                        Stats.ReceivedBytes += data.Length;
-                        return data;
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                ClientDisconnected?.Invoke(this, EventArgs.Empty);
-                throw;
-            }
+            return ReadInternal(count);
+        }
+
+        /// <summary>
+        /// Read string from the server.
+        /// </summary>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>String.</returns>
+        public async Task<string> ReadStringAsync(int count)
+        {
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
+            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
+
+            Stream ms = await ReadInternalAsync(count);
+            return Encoding.UTF8.GetString(Common.StreamToBytes(ms));
+        }
+
+        /// <summary>
+        /// Read bytes from the server.
+        /// </summary>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>Byte array.</returns>
+        public async Task<byte[]> ReadBytesAsync(int count)
+        {
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
+            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
+
+            Stream ms = await ReadInternalAsync(count);
+            return Common.StreamToBytes(ms);
+        }
+
+        /// <summary>
+        /// Read bytes from the server into a stream.
+        /// </summary>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>MemoryStrema.</returns>
+        public async Task<MemoryStream> ReadStreamAsync(int count)
+        {
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
+            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
+
+            return await ReadInternalAsync(count);
+        }
+
+        /// <summary>
+        /// Get direct access to the underlying client stream.
+        /// </summary>
+        /// <returns>Stream.</returns>
+        public Stream GetStream()
+        {
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected."); 
+
+            if (!_Ssl) return _NetworkStream; 
+            else return _SslStream; 
         }
 
         #endregion
@@ -332,27 +421,34 @@ namespace CavemanTcp
         protected virtual void Dispose(bool disposing)
         {
             if (disposing)
-            { 
-                if (_SslStream != null)
+            {
+                try
                 {
-                    _SslStream.Close();
-                    _SslStream.Dispose();
-                    _SslStream = null;
-                }
+                    _WriteSemaphore.Wait();
+                    _ReadSemaphore.Wait();
 
-                if (_NetworkStream != null)
-                {
-                    _NetworkStream.Close();
-                    _NetworkStream.Dispose();
-                    _NetworkStream = null;
-                }
+                    if (_SslStream != null)
+                    {
+                        _SslStream.Close(); 
+                    }
 
-                if (_TcpClient != null)
+                    if (_NetworkStream != null)
+                    {
+                        _NetworkStream.Close(); 
+                    }
+
+                    if (_TcpClient != null)
+                    {
+                        _TcpClient.Close();
+                        _TcpClient.Dispose();
+                        _TcpClient = null;
+                    }
+                }
+                finally
                 {
-                    _TcpClient.Close();
-                    _TcpClient.Dispose();
-                    _TcpClient = null;
-                } 
+                    _ReadSemaphore.Release();
+                    _WriteSemaphore.Release();
+                }
             }
         }
 
@@ -397,6 +493,208 @@ namespace CavemanTcp
                     Dispose(true);
                     break;
                 }
+            }
+        }
+
+        private void SendInternal(long contentLength, Stream stream)
+        {
+            try
+            { 
+                _WriteSemaphore.Wait(1); 
+
+                if (contentLength > 0 && stream != null && stream.CanRead)
+                { 
+                    long bytesRemaining = contentLength;
+
+                    while (bytesRemaining > 0)
+                    {
+                        byte[] buffer = new byte[_StreamBufferSize]; 
+                        int bytesRead = stream.Read(buffer, 0, buffer.Length); 
+                        if (bytesRead > 0)
+                        {
+                            byte[] data = null;
+                            if (bytesRead == buffer.Length)
+                            {
+                                data = new byte[buffer.Length];
+                                Buffer.BlockCopy(buffer, 0, data, 0, buffer.Length);
+                            }
+                            else
+                            {
+                                data = new byte[bytesRead];
+                                Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
+                            }
+
+                            if (!_Ssl)
+                            {
+                                _NetworkStream.Write(data, 0, data.Length);
+                                _NetworkStream.Flush();
+                            }
+                            else
+                            {
+                                _SslStream.Write(data, 0, data.Length);
+                                _SslStream.Flush();
+                            }
+
+                            bytesRemaining -= bytesRead;
+                        }
+                    } 
+                }
+            }
+            catch (Exception)
+            {
+                ClientDisconnected?.Invoke(this, EventArgs.Empty);
+                throw;
+            }
+            finally
+            {
+                _WriteSemaphore.Release();
+            }
+             
+            Stats.SentBytes += contentLength;
+        }
+
+        private async Task SendInternalAsync(long contentLength, Stream stream)
+        {
+            try
+            {
+                await _WriteSemaphore.WaitAsync(1);
+
+                if (contentLength > 0 && stream != null && stream.CanRead)
+                { 
+                    long bytesRemaining = contentLength;
+
+                    while (bytesRemaining > 0)
+                    {
+                        byte[] buffer = new byte[_StreamBufferSize];
+                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                        if (bytesRead > 0)
+                        {
+                            byte[] data = null;
+                            if (bytesRead == buffer.Length)
+                            {
+                                data = new byte[buffer.Length];
+                                Buffer.BlockCopy(buffer, 0, data, 0, buffer.Length);
+                            }
+                            else
+                            {
+                                data = new byte[bytesRead];
+                                Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
+                            }
+
+                            if (!_Ssl)
+                            {
+                                _NetworkStream.Write(data, 0, data.Length);
+                                await _NetworkStream.FlushAsync();
+                            }
+                            else
+                            {
+                                _SslStream.Write(data, 0, data.Length);
+                                await _SslStream.FlushAsync();
+                            }
+
+                            bytesRemaining -= bytesRead;
+                        }
+                    } 
+                }
+            }
+            catch (Exception)
+            {
+                ClientDisconnected?.Invoke(this, EventArgs.Empty);
+                throw;
+            }
+            finally
+            {
+                _WriteSemaphore.Release();
+            }
+
+            Stats.SentBytes += contentLength;
+        }
+
+        private MemoryStream ReadInternal(long count)
+        {
+            if (count < 1) return null;
+
+            try
+            {
+                _ReadSemaphore.Wait(1);
+                MemoryStream ms = new MemoryStream();
+                long bytesRemaining = count;
+
+                while (bytesRemaining > 0)
+                {
+                    byte[] buffer = null;
+                    if (bytesRemaining >= _StreamBufferSize) buffer = new byte[_StreamBufferSize];
+                    else buffer = new byte[bytesRemaining];
+
+                    int bytesRead = 0;
+                    if (!_Ssl) bytesRead = _NetworkStream.Read(buffer, 0, buffer.Length);
+                    else bytesRead = _SslStream.Read(buffer, 0, buffer.Length);
+
+                    if (bytesRead > 0)
+                    {
+                        if (bytesRead == buffer.Length) ms.Write(buffer, 0, buffer.Length);
+                        else ms.Write(buffer, 0, bytesRead);
+
+                        bytesRemaining -= bytesRead;
+                    }
+                }
+
+                Stats.ReceivedBytes += count;
+                ms.Seek(0, SeekOrigin.Begin);
+                return ms;
+            }
+            catch (Exception)
+            {
+                ClientDisconnected?.Invoke(this, EventArgs.Empty);
+                throw;
+            }
+            finally
+            {
+                _ReadSemaphore.Release();
+            }
+        }
+
+        private async Task<MemoryStream> ReadInternalAsync(long count)
+        {
+            if (count < 1) return null;
+
+            try
+            {
+                await _ReadSemaphore.WaitAsync(1);
+                MemoryStream ms = new MemoryStream();
+                long bytesRemaining = count;
+
+                while (bytesRemaining > 0)
+                {
+                    byte[] buffer = null;
+                    if (bytesRemaining >= _StreamBufferSize) buffer = new byte[_StreamBufferSize];
+                    else buffer = new byte[bytesRemaining];
+
+                    int bytesRead = 0;
+                    if (!_Ssl) bytesRead = await _NetworkStream.ReadAsync(buffer, 0, buffer.Length);
+                    else bytesRead = await _SslStream.ReadAsync(buffer, 0, buffer.Length);
+
+                    if (bytesRead > 0)
+                    {
+                        if (bytesRead == buffer.Length) await ms.WriteAsync(buffer, 0, buffer.Length);
+                        else await ms.WriteAsync(buffer, 0, bytesRead);
+
+                        bytesRemaining -= bytesRead;
+                    }
+                }
+
+                Stats.ReceivedBytes += count;
+                ms.Seek(0, SeekOrigin.Begin);
+                return ms;
+            }
+            catch (Exception)
+            {
+                ClientDisconnected?.Invoke(this, EventArgs.Empty);
+                throw;
+            }
+            finally
+            {
+                _ReadSemaphore.Release();
             }
         }
 
