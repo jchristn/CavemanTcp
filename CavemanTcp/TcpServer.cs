@@ -23,6 +23,17 @@ namespace CavemanTcp
         #region Public-Members
 
         /// <summary>
+        /// Indicates if the server is listening for connections.
+        /// </summary>
+        public bool IsListening
+        {
+            get
+            {
+                return _IsListening;
+            }
+        }
+
+        /// <summary>
         /// Buffer size to use while interacting with streams.
         /// </summary>
         public int StreamBufferSize
@@ -74,7 +85,7 @@ namespace CavemanTcp
 
         private int _StreamBufferSize = 65536;
         private string _Header = "[CavemanTcp.Server] ";
-        private bool _Running = false;
+        private bool _IsListening = false;
         private string _ListenerIp;
         private IPAddress _IPAddress;
         private int _Port;
@@ -134,7 +145,7 @@ namespace CavemanTcp
             _PfxCertFilename = pfxCertFilename;
             _PfxPassword = pfxPassword;
             _Token = _TokenSource.Token;
-            _Running = false;
+            _IsListening = false;
 
             if (_Ssl)
             {
@@ -174,7 +185,7 @@ namespace CavemanTcp
         /// </summary>
         public void Start()
         {
-            if (_Running) throw new InvalidOperationException("TcpServer is already running.");
+            if (_IsListening) throw new InvalidOperationException("TcpServer is already running.");
 
             _Listener = new TcpListener(_IPAddress, _Port);
             _Listener.Start();
@@ -485,6 +496,8 @@ namespace CavemanTcp
                         e.ToString() +
                         Environment.NewLine);
                 }
+
+                _IsListening = false;
             }
         }
          
@@ -568,6 +581,8 @@ namespace CavemanTcp
                     continue;
                 } 
             }
+
+            _IsListening = false;
         }
 
         private async Task<bool> StartTls(ClientMetadata client)

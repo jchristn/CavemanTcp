@@ -22,6 +22,17 @@ namespace CavemanTcp
         #region Public-Members
 
         /// <summary>
+        /// Indicates if the client is connected to the server.
+        /// </summary>
+        public bool IsConnected
+        {
+            get
+            {
+                return _IsConnected;
+            }
+        }
+
+        /// <summary>
         /// Buffer size to use while interacting with streams.
         /// </summary>
         public int StreamBufferSize
@@ -71,19 +82,20 @@ namespace CavemanTcp
 
         #region Private-Members
 
+        public bool _IsConnected = false;
         private int _StreamBufferSize = 65536;
         private string _Header = "[CavemanTcp.Client] ";
         private string _ServerIp = null;
         private int _ServerPort = 0;
         private IPAddress _IPAddress;
-        private System.Net.Sockets.TcpClient _TcpClient;
-        private NetworkStream _NetworkStream;
+        private System.Net.Sockets.TcpClient _TcpClient = null;
+        private NetworkStream _NetworkStream = null;
 
-        private bool _Ssl;
-        private string _PfxCertFilename;
-        private string _PfxPassword;
-        private SslStream _SslStream;
-        private X509Certificate2 _SslCert;
+        private bool _Ssl = false;
+        private string _PfxCertFilename = null;
+        private string _PfxPassword = null;
+        private SslStream _SslStream = null;
+        private X509Certificate2 _SslCert = null;
         private X509Certificate2Collection _SslCertCollection;
 
         private SemaphoreSlim _WriteSemaphore = new SemaphoreSlim(1);
@@ -220,6 +232,8 @@ namespace CavemanTcp
             Logger?.Invoke("Starting connection monitor for: " + _ServerIp + ":" + _ServerPort);
             Task unawaited = Task.Run(() => ClientConnectionMonitor());
             ClientConnected?.Invoke(this, EventArgs.Empty);
+            
+            _IsConnected = true;
         }
 
         /// <summary>
@@ -449,6 +463,8 @@ namespace CavemanTcp
                     _ReadSemaphore.Release();
                     _WriteSemaphore.Release();
                 }
+
+                _IsConnected = false;
             }
         }
 
@@ -543,6 +559,7 @@ namespace CavemanTcp
             catch (Exception)
             {
                 ClientDisconnected?.Invoke(this, EventArgs.Empty);
+                _IsConnected = false;
                 throw;
             }
             finally
@@ -600,6 +617,7 @@ namespace CavemanTcp
             catch (Exception)
             {
                 ClientDisconnected?.Invoke(this, EventArgs.Empty);
+                _IsConnected = false;
                 throw;
             }
             finally
@@ -646,6 +664,7 @@ namespace CavemanTcp
             catch (Exception)
             {
                 ClientDisconnected?.Invoke(this, EventArgs.Empty);
+                _IsConnected = false;
                 throw;
             }
             finally
@@ -690,6 +709,7 @@ namespace CavemanTcp
             catch (Exception)
             {
                 ClientDisconnected?.Invoke(this, EventArgs.Empty);
+                _IsConnected = false;
                 throw;
             }
             finally
