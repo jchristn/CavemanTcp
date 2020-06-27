@@ -2,11 +2,15 @@
 
 ## Current Version
  
+v1.0.3
+
+- Dispose fix
+
+## Previous Versions
+
 v1.0.2
 
 - IsListening (server) and IsConnected (client) properties
-
-## Previous Versions
 
 v1.0.1
 

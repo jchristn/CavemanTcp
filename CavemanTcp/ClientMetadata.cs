@@ -87,19 +87,40 @@ namespace CavemanTcp
 
             if (_SslStream != null)
             {
-                _SslStream.Close();  
+                try
+                {
+                    _SslStream.Close();
+                }
+                catch (Exception)
+                {
+
+                }
             }
 
             if (_NetworkStream != null)
             {
-                _NetworkStream.Close(); 
+                try
+                {
+                    _NetworkStream.Close();
+                }
+                catch (Exception)
+                {
+
+                }
             }
 
             if (_TcpClient != null)
             {
-                _TcpClient.Close();
-                _TcpClient.Dispose();
-                _TcpClient = null;
+                try
+                {
+                    _TcpClient.Close();
+                    _TcpClient.Dispose();
+                    _TcpClient = null;
+                }
+                catch (Exception)
+                {
+
+                }
             }
         }
 
