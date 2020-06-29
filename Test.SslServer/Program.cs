@@ -14,21 +14,8 @@ namespace Test.SslServer
 
         static void Main(string[] args)
         {
-            _Server = new TcpServer("127.0.0.1", 8000, true, "caveman.pfx", "simpletcp");
-            _Server.Logger = Logger;
-
-            _Server.ClientConnected += (s, e) =>
-            {
-                Console.WriteLine("Client " + e.IpPort + " connected to server");
-                _LastClient = e.IpPort;
-            };
-
-            _Server.ClientDisconnected += (s, e) =>
-            {
-                Console.WriteLine("Client " + e.IpPort + " disconnected from server");
-            };
-
-            _Server.Start();
+            InitializeServer();
+            _Server.Start(); 
 
             Console.WriteLine("Listening on ssl://127.0.0.1:8000");
 
@@ -49,6 +36,7 @@ namespace Test.SslServer
                     Console.WriteLine("   read [ipport] [count]   Read [count] bytes from a specific client");
                     Console.WriteLine("   kick [ipport]           Disconnect a specific client from the server");
                     Console.WriteLine("   dispose                 Dispose of the server");
+                    Console.WriteLine("   start                   Start the server (running: " + (_Server != null ? _Server.IsListening.ToString() : "false") + ")");
                     Console.WriteLine("   stats                   Retrieve statistics");
                     Console.WriteLine("");
                     continue;
@@ -96,9 +84,13 @@ namespace Test.SslServer
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
                     string ipPort = parts[1];
-                    int count = Convert.ToInt32(parts[2]); 
-                    string data = _Server.ReadString(ipPort, count);
-                    Console.WriteLine("Retrieved " + data.Length + " bytes: " + data);
+                    int count = Convert.ToInt32(parts[2]);
+
+                    ReadResult rr = _Server.Read(ipPort, count);
+                    if (rr.Status == ReadResultStatus.Success)
+                        Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
+                    else
+                        Console.WriteLine("Non-success status: " + rr.Status.ToString());
                 }
 
                 if (userInput.StartsWith("kick "))
@@ -111,8 +103,13 @@ namespace Test.SslServer
 
                 if (userInput.Equals("dispose"))
                 {
-                    _Server.Dispose();
-                    _RunForever = false;
+                    _Server.Dispose(); 
+                }
+
+                if (userInput.Equals("start"))
+                {
+                    InitializeServer();
+                    _Server.Start();
                 }
 
                 if (userInput.Equals("stats"))
@@ -120,6 +117,23 @@ namespace Test.SslServer
                     Console.WriteLine(_Server.Stats);
                 }
             }
+        }
+
+        static void InitializeServer()
+        {
+            _Server = new TcpServer("127.0.0.1", 8000, true, "caveman.pfx", "simpletcp");
+            _Server.Logger = Logger;
+
+            _Server.ClientConnected += (s, e) =>
+            {
+                Console.WriteLine("Client " + e.IpPort + " connected to server");
+                _LastClient = e.IpPort;
+            };
+
+            _Server.ClientDisconnected += (s, e) =>
+            {
+                Console.WriteLine("Client " + e.IpPort + " disconnected from server");
+            };
         }
 
         static void Logger(string msg)

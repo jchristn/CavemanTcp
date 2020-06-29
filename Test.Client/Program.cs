@@ -11,19 +11,7 @@ namespace Test.Client
 
         static void Main(string[] args)
         {
-            _Client = new TcpClient("127.0.0.1", 8000, false, null, null);
-            _Client.Logger = Logger;
-
-            _Client.ClientConnected += (s, e) => 
-            { 
-                Console.WriteLine("Connected to server"); 
-            };
-
-            _Client.ClientDisconnected += (s, e) => 
-            { 
-                Console.WriteLine("Disconnected from server"); 
-            };
-
+            InitializeClient(); 
             Console.WriteLine("Connecting to tcp://127.0.0.1:8000");
             _Client.Connect(10);
             
@@ -42,6 +30,7 @@ namespace Test.Client
                     Console.WriteLine("   send [data]     Send data to the server");
                     Console.WriteLine("   read [count]    Read [count] bytes from the server");
                     Console.WriteLine("   dispose         Dispose of the client");
+                    Console.WriteLine("   start           Start the client (connected: " + (_Client != null ? _Client.IsConnected.ToString() : "false") + ")");
                     Console.WriteLine("   stats           Retrieve statistics");
                     Console.WriteLine("");
                     continue;
@@ -71,14 +60,23 @@ namespace Test.Client
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
                     int count = Convert.ToInt32(parts[1]); 
-                    string data = _Client.ReadString(count);
-                    Console.WriteLine("Retrieved " + data.Length + " bytes: " + data);
+
+                    ReadResult rr = _Client.Read(count);
+                    if (rr.Status == ReadResultStatus.Success)
+                        Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
+                    else
+                        Console.WriteLine("Non-success status: " + rr.Status.ToString());
                 }
 
                 if (userInput.Equals("dispose"))
                 {
                     _Client.Dispose();
-                    _RunForever = false;
+                }
+
+                if (userInput.Equals("start"))
+                {
+                    InitializeClient();
+                    _Client.Connect(10);
                 }
 
                 if (userInput.Equals("stats"))
@@ -88,6 +86,22 @@ namespace Test.Client
             }
         }
          
+        static void InitializeClient()
+        {
+            _Client = new TcpClient("127.0.0.1", 8000, false, null, null);
+            _Client.Logger = Logger;
+
+            _Client.ClientConnected += (s, e) =>
+            {
+                Console.WriteLine("Connected to server");
+            };
+
+            _Client.ClientDisconnected += (s, e) =>
+            {
+                Console.WriteLine("Disconnected from server");
+            };
+        }
+
         static void Logger(string msg)
         {
             Console.WriteLine(msg);

@@ -82,7 +82,7 @@ namespace CavemanTcp
 
         #region Private-Members
 
-        public bool _IsConnected = false;
+        private bool _IsConnected = false;
         private int _StreamBufferSize = 65536;
         private string _Header = "[CavemanTcp.Client] ";
         private string _ServerIp = null;
@@ -240,7 +240,8 @@ namespace CavemanTcp
         /// Send data to the server.
         /// </summary>
         /// <param name="data">String data.</param>
-        public void Send(string data)
+        /// <returns>WriteResult.</returns>
+        public WriteResult Send(string data)
         {
             if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
             if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
@@ -248,21 +249,22 @@ namespace CavemanTcp
             byte[] bytes = Encoding.UTF8.GetBytes(data);
             ms.Write(bytes, 0, bytes.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            SendInternal(bytes.Length, ms);
+            return SendInternal(bytes.Length, ms);
         }
 
         /// <summary>
         /// Send data to the server.
         /// </summary> 
         /// <param name="data">Byte array containing data to send.</param>
-        public void Send(byte[] data)
+        /// <returns>WriteResult.</returns>
+        public WriteResult Send(byte[] data)
         {
             if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
             if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
             MemoryStream ms = new MemoryStream(); 
             ms.Write(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            SendInternal(data.Length, ms); 
+            return SendInternal(data.Length, ms); 
         }
 
         /// <summary>
@@ -270,18 +272,22 @@ namespace CavemanTcp
         /// </summary> 
         /// <param name="contentLength">Number of bytes to send from the stream.</param>
         /// <param name="stream">Stream containing data.</param>
-        public void Send(long contentLength, Stream stream)
+        /// <returns>WriteResult.</returns>
+        public WriteResult Send(long contentLength, Stream stream)
         {
             if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
-            if (contentLength < 1 || stream == null || !stream.CanRead) return;
-            SendInternal(contentLength, stream);
+            if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
+            return SendInternal(contentLength, stream);
         }
 
         /// <summary>
         /// Send data to the server.
         /// </summary>
         /// <param name="data">String data.</param>
-        public async Task SendAsync(string data)
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendAsync(string data)
         {
             if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
             if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
@@ -289,21 +295,22 @@ namespace CavemanTcp
             byte[] bytes = Encoding.UTF8.GetBytes(data);
             await ms.WriteAsync(bytes, 0, bytes.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            await SendInternalAsync(bytes.Length, ms);
+            return await SendInternalAsync(bytes.Length, ms);
         }
 
         /// <summary>
         /// Send data to the server.
         /// </summary> 
         /// <param name="data">Byte array containing data to send.</param>
-        public async Task SendAsync(byte[] data)
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendAsync(byte[] data)
         {
             if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
             if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
             MemoryStream ms = new MemoryStream();
             await ms.WriteAsync(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            await SendInternalAsync(data.Length, ms);
+            return await SendInternalAsync(data.Length, ms);
         }
 
         /// <summary>
@@ -311,115 +318,51 @@ namespace CavemanTcp
         /// </summary> 
         /// <param name="contentLength">Number of bytes to send from the stream.</param>
         /// <param name="stream">Stream containing data.</param>
-        public async Task SendAsync(long contentLength, Stream stream)
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendAsync(long contentLength, Stream stream)
         {
             if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
-            if (contentLength < 1 || stream == null || !stream.CanRead) return;
-            await SendInternalAsync(contentLength, stream);
+            if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
+            return await SendInternalAsync(contentLength, stream);
         }
 
         /// <summary>
         /// Read string from the server.
         /// </summary>
         /// <param name="count">The number of bytes to read.</param>
-        /// <returns>String.</returns>
-        public string ReadString(int count)
+        /// <returns>ReadResult.</returns>
+        public ReadResult Read(int count)
         {
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
             if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
             if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
-            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
-
-            Stream ms = ReadInternal(count);
-            return Encoding.UTF8.GetString(Common.StreamToBytes(ms));
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream."); 
+            return ReadInternal(count); 
         }
-
-        /// <summary>
-        /// Read bytes from the server.
-        /// </summary>
-        /// <param name="count">The number of bytes to read.</param>
-        /// <returns>Byte array.</returns>
-        public byte[] ReadBytes(int count)
-        {
-            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
-            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
-            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
-
-            Stream ms = ReadInternal(count);
-            return Common.StreamToBytes(ms);
-        }
-
-        /// <summary>
-        /// Read bytes from the server into a stream.
-        /// </summary>
-        /// <param name="count">The number of bytes to read.</param>
-        /// <returns>MemoryStrema.</returns>
-        public MemoryStream ReadStream(int count)
-        {
-            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
-            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
-            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
-
-            return ReadInternal(count);
-        }
-
+          
         /// <summary>
         /// Read string from the server.
         /// </summary>
         /// <param name="count">The number of bytes to read.</param>
-        /// <returns>String.</returns>
-        public async Task<string> ReadStringAsync(int count)
+        /// <returns>ReadResult.</returns>
+        public async Task<ReadResult> ReadAsync(int count)
         {
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
             if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
             if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
-            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
-
-            Stream ms = await ReadInternalAsync(count);
-            return Encoding.UTF8.GetString(Common.StreamToBytes(ms));
-        }
-
-        /// <summary>
-        /// Read bytes from the server.
-        /// </summary>
-        /// <param name="count">The number of bytes to read.</param>
-        /// <returns>Byte array.</returns>
-        public async Task<byte[]> ReadBytesAsync(int count)
-        {
-            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
-            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
-            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
-
-            Stream ms = await ReadInternalAsync(count);
-            return Common.StreamToBytes(ms);
-        }
-
-        /// <summary>
-        /// Read bytes from the server into a stream.
-        /// </summary>
-        /// <param name="count">The number of bytes to read.</param>
-        /// <returns>MemoryStrema.</returns>
-        public async Task<MemoryStream> ReadStreamAsync(int count)
-        {
-            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");
-            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
-            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
-
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream."); 
             return await ReadInternalAsync(count);
         }
-
+          
         /// <summary>
         /// Get direct access to the underlying client stream.
         /// </summary>
         /// <returns>Stream.</returns>
         public Stream GetStream()
         {
-            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected."); 
-
+            if (_TcpClient == null || !_TcpClient.Connected) throw new IOException("Client is not connected.");  
             if (!_Ssl) return _NetworkStream; 
             else return _SslStream; 
         }
@@ -512,10 +455,12 @@ namespace CavemanTcp
             }
         }
 
-        private void SendInternal(long contentLength, Stream stream)
+        private WriteResult SendInternal(long contentLength, Stream stream)
         {
+            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
+
             try
-            { 
+            {
                 _WriteSemaphore.Wait(1); 
 
                 if (contentLength > 0 && stream != null && stream.CanRead)
@@ -551,27 +496,31 @@ namespace CavemanTcp
                                 _SslStream.Flush();
                             }
 
+                            result.BytesWritten += bytesRead;
+                            Stats.SentBytes += bytesRead;
                             bytesRemaining -= bytesRead;
                         }
                     } 
                 }
+
+                return result;
             }
             catch (Exception)
             {
-                ClientDisconnected?.Invoke(this, EventArgs.Empty);
+                result.Status = WriteResultStatus.Disconnected;
                 _IsConnected = false;
-                throw;
+                return result;
             }
             finally
             {
                 _WriteSemaphore.Release();
-            }
-             
-            Stats.SentBytes += contentLength;
+            } 
         }
 
-        private async Task SendInternalAsync(long contentLength, Stream stream)
+        private async Task<WriteResult> SendInternalAsync(long contentLength, Stream stream)
         {
+            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
+
             try
             {
                 await _WriteSemaphore.WaitAsync(1);
@@ -609,28 +558,30 @@ namespace CavemanTcp
                                 await _SslStream.FlushAsync();
                             }
 
+                            result.BytesWritten += bytesRead;
+                            Stats.SentBytes += bytesRead;
                             bytesRemaining -= bytesRead;
                         }
                     } 
                 }
+
+                return result;
             }
             catch (Exception)
             {
-                ClientDisconnected?.Invoke(this, EventArgs.Empty);
+                result.Status = WriteResultStatus.Disconnected;
                 _IsConnected = false;
-                throw;
+                return result; 
             }
             finally
             {
                 _WriteSemaphore.Release();
-            }
-
-            Stats.SentBytes += contentLength;
+            } 
         }
 
-        private MemoryStream ReadInternal(long count)
-        {
-            if (count < 1) return null;
+        private ReadResult ReadInternal(long count)
+        { 
+            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
             try
             {
@@ -653,13 +604,21 @@ namespace CavemanTcp
                         if (bytesRead == buffer.Length) ms.Write(buffer, 0, buffer.Length);
                         else ms.Write(buffer, 0, bytesRead);
 
+                        result.BytesRead += bytesRead;
+                        Stats.ReceivedBytes += bytesRead;
                         bytesRemaining -= bytesRead;
                     }
                 }
 
-                Stats.ReceivedBytes += count;
                 ms.Seek(0, SeekOrigin.Begin);
-                return ms;
+                result.DataStream = ms; 
+                return result;
+            }
+            catch (ObjectDisposedException)
+            {
+                ClientDisconnected?.Invoke(this, EventArgs.Empty);
+                _IsConnected = false;
+                throw;
             }
             catch (Exception)
             {
@@ -673,9 +632,9 @@ namespace CavemanTcp
             }
         }
 
-        private async Task<MemoryStream> ReadInternalAsync(long count)
+        private async Task<ReadResult> ReadInternalAsync(long count)
         {
-            if (count < 1) return null;
+            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
             try
             {
@@ -698,19 +657,27 @@ namespace CavemanTcp
                         if (bytesRead == buffer.Length) await ms.WriteAsync(buffer, 0, buffer.Length);
                         else await ms.WriteAsync(buffer, 0, bytesRead);
 
+                        result.BytesRead += bytesRead; 
+                        Stats.ReceivedBytes += bytesRead;
                         bytesRemaining -= bytesRead;
                     }
                 }
 
-                Stats.ReceivedBytes += count;
                 ms.Seek(0, SeekOrigin.Begin);
-                return ms;
+                result.DataStream = ms; 
+                return result;
+            }
+            catch (ObjectDisposedException)
+            {
+                result.Status = ReadResultStatus.Disconnected;
+                result.DataStream = null;
+                return result;
             }
             catch (Exception)
             {
-                ClientDisconnected?.Invoke(this, EventArgs.Empty);
-                _IsConnected = false;
-                throw;
+                result.Status = ReadResultStatus.Disconnected;
+                result.DataStream = null;
+                return result;
             }
             finally
             {

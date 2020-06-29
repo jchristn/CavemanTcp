@@ -2,11 +2,15 @@
 
 ## Current Version
  
+v1.1.0
+
+- Breaking changes; read now returns ReadResult and write now returns WriteResult
+
+## Previous Versions
+
 v1.0.3
 
 - Dispose fix
-
-## Previous Versions
 
 v1.0.2
 

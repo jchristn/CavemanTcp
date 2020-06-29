@@ -194,6 +194,8 @@ namespace CavemanTcp
 
             Stats = new Statistics();
             Task.Run(() => AcceptConnections(), _Token);
+
+            _IsListening = true;
         }
 
         /// <summary>
@@ -226,7 +228,8 @@ namespace CavemanTcp
         /// </summary>
         /// <param name="ipPort">The client IP:port string.</param>
         /// <param name="data">String containing data to send.</param>
-        public void Send(string ipPort, string data)
+        /// <returns>WriteResult.</returns>
+        public WriteResult Send(string ipPort, string data)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
@@ -234,7 +237,7 @@ namespace CavemanTcp
             byte[] bytes = Encoding.UTF8.GetBytes(data);
             ms.Write(bytes, 0, bytes.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            SendInternal(ipPort, bytes.Length, ms);
+            return SendInternal(ipPort, bytes.Length, ms);
         }
 
         /// <summary>
@@ -242,14 +245,15 @@ namespace CavemanTcp
         /// </summary>
         /// <param name="ipPort">The client IP:port string.</param>
         /// <param name="data">Byte array containing data to send.</param>
-        public void Send(string ipPort, byte[] data)
+        /// <returns>WriteResult.</returns>
+        public WriteResult Send(string ipPort, byte[] data)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
             MemoryStream ms = new MemoryStream(); 
             ms.Write(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            SendInternal(ipPort, data.Length, ms);
+            return SendInternal(ipPort, data.Length, ms);
         }
 
         /// <summary>
@@ -258,11 +262,14 @@ namespace CavemanTcp
         /// <param name="ipPort">The client IP:port string.</param>
         /// <param name="contentLength">Number of bytes to send from the stream.</param>
         /// <param name="stream">Stream containing data to send.</param>
-        public void Send(string ipPort, long contentLength, Stream stream)
+        /// <returns>WriteResult.</returns>
+        public WriteResult Send(string ipPort, long contentLength, Stream stream)
         {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (contentLength < 1 || stream == null || !stream.CanRead) return;
-            SendInternal(ipPort, contentLength, stream);
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort)); 
+            if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
+            return SendInternal(ipPort, contentLength, stream);
         }
 
         /// <summary>
@@ -270,7 +277,8 @@ namespace CavemanTcp
         /// </summary>
         /// <param name="ipPort">The client IP:port string.</param>
         /// <param name="data">String containing data to send.</param>
-        public async Task SendAsync(string ipPort, string data)
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendAsync(string ipPort, string data)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
@@ -278,7 +286,7 @@ namespace CavemanTcp
             byte[] bytes = Encoding.UTF8.GetBytes(data);
             await ms.WriteAsync(bytes, 0, bytes.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            await SendInternalAsync(ipPort, bytes.Length, ms);
+            return await SendInternalAsync(ipPort, bytes.Length, ms);
         }
 
         /// <summary>
@@ -286,14 +294,15 @@ namespace CavemanTcp
         /// </summary>
         /// <param name="ipPort">The client IP:port string.</param>
         /// <param name="data">Byte array containing data to send.</param>
-        public async Task SendAsync(string ipPort, byte[] data)
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendAsync(string ipPort, byte[] data)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
             MemoryStream ms = new MemoryStream();
             await ms.WriteAsync(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            await SendInternalAsync(ipPort, data.Length, ms);
+            return await SendInternalAsync(ipPort, data.Length, ms);
         }
 
         /// <summary>
@@ -302,11 +311,14 @@ namespace CavemanTcp
         /// <param name="ipPort">The client IP:port string.</param>
         /// <param name="contentLength">Number of bytes to send from the stream.</param>
         /// <param name="stream">Stream containing data to send.</param>
-        public async Task SendAsync(string ipPort, long contentLength, Stream stream)
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendAsync(string ipPort, long contentLength, Stream stream)
         {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (contentLength < 1 || stream == null || !stream.CanRead) return;
-            await SendInternalAsync(ipPort, contentLength, stream);
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort)); 
+            if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
+            return await SendInternalAsync(ipPort, contentLength, stream);
         }
 
         /// <summary>
@@ -318,22 +330,15 @@ namespace CavemanTcp
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
 
             lock (_ClientsLock)
-            {
-                if (!_Clients.ContainsKey(ipPort))
+            { 
+                if (_Clients.ContainsKey(ipPort))
                 {
-                    Logger?.Invoke(_Header + "Unable to find client: " + ipPort);
-                }
-                else
-                {
-                    Logger?.Invoke(_Header + "Kicking: " + ipPort);
-
                     ClientMetadata client = _Clients[ipPort];
                     client.Dispose();
-
                     _Clients.Remove(ipPort);
                 }
 
-                Logger?.Invoke(_Header + "Disposed: " + ipPort); 
+                Logger?.Invoke(_Header + "Removed: " + ipPort); 
             }
 
             ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Kicked));
@@ -344,89 +349,27 @@ namespace CavemanTcp
         /// </summary>
         /// <param name="ipPort">The client IP:port string.</param>
         /// <param name="count">The number of bytes to read.</param>
-        /// <returns>String.</returns>
-        public string ReadString(string ipPort, int count)
+        /// <returns>ReadResult.</returns>
+        public ReadResult Read(string ipPort, int count)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-
-            MemoryStream ms = ReadInternal(ipPort, count);
-            return Encoding.UTF8.GetString(Common.StreamToBytes(ms));
-        }
-
-        /// <summary>
-        /// Read data from a given client.
-        /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
-        /// <param name="count">The number of bytes to read.</param>
-        /// <returns>Byte array.</returns>
-        public byte[] ReadBytes(string ipPort, int count)
-        {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-
-            MemoryStream ms = ReadInternal(ipPort, count);
-            return Common.StreamToBytes(ms);
-        }
-
-        /// <summary>
-        /// Read bytes from the client into a stream.
-        /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
-        /// <param name="count">The number of bytes to read.</param>
-        /// <returns>MemoryStrema.</returns>
-        public MemoryStream ReadStream(string ipPort, int count)
-        {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-
             return ReadInternal(ipPort, count);
         }
-
+         
         /// <summary>
         /// Read data from a given client.
         /// </summary>
         /// <param name="ipPort">The client IP:port string.</param>
         /// <param name="count">The number of bytes to read.</param>
-        /// <returns>String.</returns>
-        public async Task<string> ReadStringAsync(string ipPort, int count)
+        /// <returns>ReadResult.</returns>
+        public async Task<ReadResult> ReadAsync(string ipPort, int count)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-
-            MemoryStream ms = await ReadInternalAsync(ipPort, count);
-            return Encoding.UTF8.GetString(Common.StreamToBytes(ms));
-        }
-
-        /// <summary>
-        /// Read data from a given client.
-        /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
-        /// <param name="count">The number of bytes to read.</param>
-        /// <returns>Byte array.</returns>
-        public async Task<byte[]> ReadBytesAsync(string ipPort, int count)
-        {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-
-            MemoryStream ms = await ReadInternalAsync(ipPort, count);
-            return Common.StreamToBytes(ms);
-        }
-
-        /// <summary>
-        /// Read bytes from the client into a stream.
-        /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
-        /// <param name="count">The number of bytes to read.</param>
-        /// <returns>MemoryStrema.</returns>
-        public async Task<MemoryStream> ReadStreamAsync(string ipPort, int count)
-        {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-
             return await ReadInternalAsync(ipPort, count);
         }
-
+         
         /// <summary>
         /// Get direct access to the underlying client stream.
         /// </summary>
@@ -634,19 +577,22 @@ namespace CavemanTcp
           
         private void ClientConnectionMonitor(ClientMetadata client)
         {
+            string ipPort = client.IpPort;
+
             while (true)
             {
                 Task.Delay(1000).Wait();
-                if (!IsClientConnected(client.Client))
+
+                if (client == null || client.Client == null || !IsClientConnected(client.Client))
                 {
-                    Logger?.Invoke(_Header + "Client " + client.IpPort + " no longer connected");
-                    DisconnectClient(client.IpPort);
+                    Logger?.Invoke(_Header + "Client " + ipPort + " no longer connected");
+                    DisconnectClient(ipPort);
                     break;
                 }
             }
         }
-
-        private void SendInternal(string ipPort, long contentLength, Stream stream)
+         
+        private WriteResult SendInternal(string ipPort, long contentLength, Stream stream)
         {
             ClientMetadata client = null;
 
@@ -654,11 +600,13 @@ namespace CavemanTcp
             {
                 if (!_Clients.ContainsKey(ipPort))
                 {
-                    throw new KeyNotFoundException("Client with IP:port of " + ipPort + " not found.");
+                    return new WriteResult(WriteResultStatus.ClientNotFound, 0);
                 }
 
                 client = _Clients[ipPort];
             }
+
+            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
 
             try
             {
@@ -697,25 +645,27 @@ namespace CavemanTcp
                                 client.SslStream.Flush();
                             }
 
+                            result.BytesWritten += bytesRead;
+                            Stats.SentBytes += bytesRead;
                             bytesRemaining -= bytesRead;
                         }
-                    }
+                    } 
                 }
+
+                return result;
             }
             catch (Exception)
             {
-                ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Normal));
-                throw;
+                result.Status = WriteResultStatus.Disconnected;
+                return result;
             }
             finally
             {
                 client.WriteSemaphore.Release();
-            }
-
-            Stats.SentBytes += contentLength;
+            } 
         }
 
-        private async Task SendInternalAsync(string ipPort, long contentLength, Stream stream)
+        private async Task<WriteResult> SendInternalAsync(string ipPort, long contentLength, Stream stream)
         {
             ClientMetadata client = null;
 
@@ -723,11 +673,13 @@ namespace CavemanTcp
             {
                 if (!_Clients.ContainsKey(ipPort))
                 {
-                    throw new KeyNotFoundException("Client with IP:port of " + ipPort + " not found.");
+                    return new WriteResult(WriteResultStatus.ClientNotFound, 0);
                 }
 
                 client = _Clients[ipPort];
             }
+
+            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
 
             try
             {
@@ -766,27 +718,29 @@ namespace CavemanTcp
                                 await client.SslStream.FlushAsync();
                             }
 
+                            result.BytesWritten += bytesRead;
+                            Stats.SentBytes += bytesRead;
                             bytesRemaining -= bytesRead;
                         }
-                    }
+                    } 
                 }
+
+                return result;
             }
             catch (Exception)
             {
-                ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Normal));
-                throw;
+                result.Status = WriteResultStatus.Disconnected;
+                return result;
             }
             finally
             {
                 client.WriteSemaphore.Release();
-            }
-
-            Stats.SentBytes += contentLength;
+            } 
         }
-
-        private MemoryStream ReadInternal(string ipPort, long count)
+         
+        private ReadResult ReadInternal(string ipPort, long count)
         {
-            if (count < 1) return null;
+            if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
 
             ClientMetadata client = null;
 
@@ -794,11 +748,13 @@ namespace CavemanTcp
             {
                 if (!_Clients.ContainsKey(ipPort))
                 {
-                    throw new KeyNotFoundException("Client with IP:port of " + ipPort + " not found.");
+                    return new ReadResult(ReadResultStatus.ClientNotFound, 0, null); 
                 }
 
                 client = _Clients[ipPort];
             }
+
+            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
             try
             {
@@ -821,28 +777,31 @@ namespace CavemanTcp
                         if (bytesRead == buffer.Length) ms.Write(buffer, 0, buffer.Length);
                         else ms.Write(buffer, 0, bytesRead);
 
+                        result.BytesRead += bytesRead;
+                        Stats.ReceivedBytes += bytesRead;
                         bytesRemaining -= bytesRead;
                     }
                 }
 
-                Stats.ReceivedBytes += count;
                 ms.Seek(0, SeekOrigin.Begin);
-                return ms;
+                result.DataStream = ms; 
+                return result;
             }
             catch (Exception)
             {
-                ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Normal));
-                throw;
+                result.Status = ReadResultStatus.Disconnected; 
+                result.DataStream = null; 
+                return result;
             }
             finally
             {
                 client.ReadSemaphore.Release();
-            } 
+            }
         }
 
-        private async Task<MemoryStream> ReadInternalAsync(string ipPort, long count)
+        private async Task<ReadResult> ReadInternalAsync(string ipPort, long count)
         {
-            if (count < 1) return null;
+            if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
 
             ClientMetadata client = null;
 
@@ -850,11 +809,13 @@ namespace CavemanTcp
             {
                 if (!_Clients.ContainsKey(ipPort))
                 {
-                    throw new KeyNotFoundException("Client with IP:port of " + ipPort + " not found.");
+                    return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
                 }
 
                 client = _Clients[ipPort];
             }
+
+            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
             try
             {
@@ -877,23 +838,27 @@ namespace CavemanTcp
                         if (bytesRead == buffer.Length) await ms.WriteAsync(buffer, 0, buffer.Length);
                         else await ms.WriteAsync(buffer, 0, bytesRead);
 
+                        result.BytesRead += bytesRead;
+                        Stats.ReceivedBytes += bytesRead;
                         bytesRemaining -= bytesRead;
                     }
                 }
 
-                Stats.ReceivedBytes += count;
                 ms.Seek(0, SeekOrigin.Begin);
-                return ms;
+                result.DataStream = ms; 
+                return result;
             }
             catch (Exception)
             {
-                ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Normal));
-                throw;
+                result.Status = ReadResultStatus.Disconnected;
+                result.BytesRead = 0;
+                result.DataStream = null;
+                return result;
             }
             finally
             {
                 client.ReadSemaphore.Release();
-            } 
+            }
         }
 
         #endregion

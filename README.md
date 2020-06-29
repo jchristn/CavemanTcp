@@ -16,9 +16,9 @@ Important:
 
 Since CavemanTcp relies on the consuming application to specify when to read or write, there are no background threads continually monitoring the state of the TCP connection (unlike SimpleTcp and WatsonTcp).  Thus, you should build your apps on the expectation that an exception may be thrown while in the middle of a read or write.
 
-## New in v1.0.3
+## New in v1.1.0
 
-- Dispose fix
+- Breaking changes; read now returns ReadResult and write now returns WriteResult
 
 ## Examples
 
@@ -45,10 +45,10 @@ server.ClientDisconnected += (s, e) =>
 server.Start(); 
 
 // Send [Data] to client at [IP:Port] 
-server.Send("[IP:Port]", "[Data]");
+WriteResult wr = server.Send("[IP:Port]", "[Data]");
 
 // Receive [count] bytes of data from client at [IP:Port]
-byte[] data = server.Read("[IP:Port]", [count]);
+ReadResult rr = server.Read("[IP:Port]", [count]);
 
 // List clients
 List<string> clients = server.GetClients().ToList();
@@ -80,11 +80,29 @@ client.ClientDisconnected += (s, e) =>
 client.Connect(10);
 
 // Send data to server
-client.Send("Hello, world!");
+WriteResult wr = client.Send("Hello, world!");
 
 // Read [count] bytes of data from server
-byte[] data = client.Read([count]);
+ReadResult rr = client.Read([count]);
 ```
+
+## WriteResult and ReadResult
+```WriteResult``` and ```ReadResult``` contains a ```Status``` property that indicates one of the following:
+
+- ```ClientNotFound``` - only applicable for server read and write operations
+- ```Success``` - the operation was successful
+- ```Timeout``` - the operation timed out (reserved for future use)
+- ```Disconnected``` - the peer disconnected
+
+```WriteResult``` also includes:
+
+- ```BytesWritten``` - the number of bytes written to the socket.
+
+```ReadResult``` also includes:
+
+- ```BytesRead``` - the number of bytes read from the socket.
+- ```DataStream``` - a ```MemoryStream``` containing the requested data.
+- ```Data``` - a ```byte[]``` representation of ```DataStream```.  Using this property will fully read ```DataStream``` to the end.
 
 ## Help or Feedback
 
