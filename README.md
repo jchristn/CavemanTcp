@@ -16,9 +16,11 @@ Important:
 
 Since CavemanTcp relies on the consuming application to specify when to read or write, there are no background threads continually monitoring the state of the TCP connection (unlike SimpleTcp and WatsonTcp).  Thus, you should build your apps on the expectation that an exception may be thrown while in the middle of a read or write.
 
-## New in v1.1.1
+## New in v1.2.0
 
-- Disable MutuallyAuthenticate for SSL by default
+- ```SendWithTimeout```, ```SendWithTimeoutAsync```, ```ReadWithTimeout```, and ```ReadWithTimeoutAsync``` APIs
+- Async test client and server
+- Disable MutuallyAuthenticate for SSL by default on the client
 
 ## Examples
 
@@ -45,10 +47,18 @@ server.ClientDisconnected += (s, e) =>
 server.Start(); 
 
 // Send [Data] to client at [IP:Port] 
-WriteResult wr = server.Send("[IP:Port]", "[Data]");
+WriteResult wr = null;
+wr = server.Send("[IP:Port]", "[Data]");
+wr = server.SendWithTimeout([ms], "[IP:Port]", "[Data]");
+wr = await server.SendAsync("[IP:Port]", "[Data]");
+wr = await server.SendWithTimeoutAsync([ms], "[IP:Port]", "[Data]");
 
 // Receive [count] bytes of data from client at [IP:Port]
-ReadResult rr = server.Read("[IP:Port]", [count]);
+ReadResult rr = null;
+rr = server.Read("[IP:Port]", [count]);
+rr = server.ReadWithTimeout([ms], "[IP:Port]", count);
+rr = await server.ReadAsync("[IP:Port]", [count]);
+rr = await server.ReadWithTimeoutAsync([ms], "[IP:Port]", [count]);
 
 // List clients
 List<string> clients = server.GetClients().ToList();
@@ -80,10 +90,18 @@ client.ClientDisconnected += (s, e) =>
 client.Connect(10);
 
 // Send data to server
-WriteResult wr = client.Send("Hello, world!");
+WriteResult wr = null;
+wr = client.Send("[Data]");
+wr = client.SendWithTimeout([ms], "[Data]");
+wr = await client.SendAsync("[Data]");
+wr = await client.SendWithTimeoutAsync([ms], "[Data]");
 
 // Read [count] bytes of data from server
-ReadResult rr = client.Read([count]);
+ReadResult rr = null;
+rr = client.Read([count]);
+rr = client.ReadWithTimeout([ms], count);
+rr = client server.ReadAsync([count]);
+rr = client server.ReadWithTimeoutAsync([ms], [count]);
 ```
 
 ## WriteResult and ReadResult
@@ -103,6 +121,15 @@ ReadResult rr = client.Read([count]);
 - ```BytesRead``` - the number of bytes read from the socket.
 - ```DataStream``` - a ```MemoryStream``` containing the requested data.
 - ```Data``` - a ```byte[]``` representation of ```DataStream```.  Using this property will fully read ```DataStream``` to the end.
+
+## Operations with Timeouts
+When using any of the APIs that allow you to specify a timeout (i.e. ```SendWithTimeout```, ```SendWithTimeoutAsync```, ```ReadWithTimeout```, and ```ReadWithTimeoutAsync```), the resultant ```WriteResult``` and ```ReadResult``` as mentioned above will indicate if the operation timed out.  
+
+It is important to understand what a timeout indicates and more important what it doesn't.
+
+- A timeout on a write operation has **nothing to do with whether or not the recipient read the data**.  Rather it is whether or not CavemanTcp was able to write the data to the underlying ```NetworkStream``` or ```SslStream```
+- A timeout on a read operation will occur if CavemanTcp is unable to read the specified number of bytes from the underlying ```NetworkStream``` or ```SslStream``` in the allotted number of milliseconds
+- Valid values for ```timeoutMs``` are ```-1``` or any positive integer.  ```-1``` indicates no timeout and is the same as using an API that doesn't specify a timeout
 
 ## Help or Feedback
 

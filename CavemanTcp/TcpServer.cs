@@ -237,7 +237,7 @@ namespace CavemanTcp
             byte[] bytes = Encoding.UTF8.GetBytes(data);
             ms.Write(bytes, 0, bytes.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return SendInternal(ipPort, bytes.Length, ms);
+            return SendInternal(-1, ipPort, bytes.Length, ms);
         }
 
         /// <summary>
@@ -253,7 +253,7 @@ namespace CavemanTcp
             MemoryStream ms = new MemoryStream(); 
             ms.Write(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return SendInternal(ipPort, data.Length, ms);
+            return SendInternal(-1, ipPort, data.Length, ms);
         }
 
         /// <summary>
@@ -269,7 +269,62 @@ namespace CavemanTcp
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            return SendInternal(ipPort, contentLength, stream);
+            return SendInternal(-1, ipPort, contentLength, stream);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="data">String containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        public WriteResult SendWithTimeout(int timeoutMs, string ipPort, string data)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
+            MemoryStream ms = new MemoryStream();
+            byte[] bytes = Encoding.UTF8.GetBytes(data);
+            ms.Write(bytes, 0, bytes.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            return SendInternal(timeoutMs, ipPort, bytes.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="data">Byte array containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        public WriteResult SendWithTimeout(int timeoutMs, string ipPort, byte[] data)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            MemoryStream ms = new MemoryStream();
+            ms.Write(data, 0, data.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            return SendInternal(timeoutMs, ipPort, data.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="contentLength">Number of bytes to send from the stream.</param>
+        /// <param name="stream">Stream containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        public WriteResult SendWithTimeout(int timeoutMs, string ipPort, long contentLength, Stream stream)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
+            return SendInternal(timeoutMs, ipPort, contentLength, stream);
         }
 
         /// <summary>
@@ -286,7 +341,7 @@ namespace CavemanTcp
             byte[] bytes = Encoding.UTF8.GetBytes(data);
             await ms.WriteAsync(bytes, 0, bytes.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendInternalAsync(ipPort, bytes.Length, ms);
+            return await SendInternalAsync(-1, ipPort, bytes.Length, ms);
         }
 
         /// <summary>
@@ -302,7 +357,7 @@ namespace CavemanTcp
             MemoryStream ms = new MemoryStream();
             await ms.WriteAsync(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendInternalAsync(ipPort, data.Length, ms);
+            return await SendInternalAsync(-1, ipPort, data.Length, ms);
         }
 
         /// <summary>
@@ -318,7 +373,62 @@ namespace CavemanTcp
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            return await SendInternalAsync(ipPort, contentLength, stream);
+            return await SendInternalAsync(-1, ipPort, contentLength, stream);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="data">String containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, string ipPort, string data)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
+            MemoryStream ms = new MemoryStream();
+            byte[] bytes = Encoding.UTF8.GetBytes(data);
+            await ms.WriteAsync(bytes, 0, bytes.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            return await SendInternalAsync(timeoutMs, ipPort, bytes.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="data">Byte array containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, string ipPort, byte[] data)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            MemoryStream ms = new MemoryStream();
+            await ms.WriteAsync(data, 0, data.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            return await SendInternalAsync(timeoutMs, ipPort, data.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="contentLength">Number of bytes to send from the stream.</param>
+        /// <param name="stream">Stream containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, string ipPort, long contentLength, Stream stream)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
+            return await SendInternalAsync(timeoutMs, ipPort, contentLength, stream);
         }
 
         /// <summary>
@@ -354,9 +464,24 @@ namespace CavemanTcp
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            return ReadInternal(ipPort, count);
+            return ReadInternal(-1, ipPort, count);
         }
-         
+
+        /// <summary>
+        /// Read data from a given client.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>ReadResult.</returns>
+        public ReadResult ReadWithTimeout(int timeoutMs, string ipPort, int count)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            return ReadInternal(timeoutMs, ipPort, count);
+        }
+
         /// <summary>
         /// Read data from a given client.
         /// </summary>
@@ -367,9 +492,24 @@ namespace CavemanTcp
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            return await ReadInternalAsync(ipPort, count);
+            return await ReadInternalAsync(-1, ipPort, count);
         }
-         
+
+        /// <summary>
+        /// Read data from a given client.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>ReadResult.</returns>
+        public async Task<ReadResult> ReadWithTimeoutAsync(int timeoutMs, string ipPort, int count)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            return await ReadInternalAsync(timeoutMs, ipPort, count);
+        }
+
         /// <summary>
         /// Get direct access to the underlying client stream.
         /// </summary>
@@ -592,7 +732,7 @@ namespace CavemanTcp
             }
         }
          
-        private WriteResult SendInternal(string ipPort, long contentLength, Stream stream)
+        private WriteResult SendInternal(int timeoutMs, string ipPort, long contentLength, Stream stream)
         {
             ClientMetadata client = null;
 
@@ -608,64 +748,79 @@ namespace CavemanTcp
 
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
 
-            try
+            Task<WriteResult> task = Task.Run(() =>
             {
-                client.WriteSemaphore.Wait(1);
-
-                if (contentLength > 0 && stream != null && stream.CanRead)
+                try
                 {
-                    long bytesRemaining = contentLength;
+                    client.WriteSemaphore.Wait(1);
 
-                    while (bytesRemaining > 0)
+                    if (contentLength > 0 && stream != null && stream.CanRead)
                     {
-                        byte[] buffer = new byte[_StreamBufferSize];
-                        int bytesRead = stream.Read(buffer, 0, buffer.Length);
-                        if (bytesRead > 0)
+                        long bytesRemaining = contentLength;
+
+                        while (bytesRemaining > 0)
                         {
-                            byte[] data = null;
-                            if (bytesRead == buffer.Length)
+                            byte[] buffer = new byte[_StreamBufferSize];
+                            int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                            if (bytesRead > 0)
                             {
-                                data = new byte[buffer.Length];
-                                Buffer.BlockCopy(buffer, 0, data, 0, buffer.Length);
-                            }
-                            else
-                            {
-                                data = new byte[bytesRead];
-                                Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
-                            }
+                                byte[] data = null;
+                                if (bytesRead == buffer.Length)
+                                {
+                                    data = new byte[buffer.Length];
+                                    Buffer.BlockCopy(buffer, 0, data, 0, buffer.Length);
+                                }
+                                else
+                                {
+                                    data = new byte[bytesRead];
+                                    Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
+                                }
 
-                            if (!_Ssl)
-                            {
-                                client.NetworkStream.Write(data, 0, data.Length);
-                                client.NetworkStream.Flush();
-                            }
-                            else
-                            {
-                                client.SslStream.Write(data, 0, data.Length);
-                                client.SslStream.Flush();
-                            }
+                                if (!_Ssl)
+                                {
+                                    client.NetworkStream.Write(data, 0, data.Length);
+                                    client.NetworkStream.Flush();
+                                }
+                                else
+                                {
+                                    client.SslStream.Write(data, 0, data.Length);
+                                    client.SslStream.Flush();
+                                }
 
-                            result.BytesWritten += bytesRead;
-                            Stats.SentBytes += bytesRead;
-                            bytesRemaining -= bytesRead;
+                                result.BytesWritten += bytesRead;
+                                Stats.SentBytes += bytesRead;
+                                bytesRemaining -= bytesRead;
+                            }
                         }
-                    } 
-                }
+                    }
 
+                    return result;
+                }
+                catch (Exception)
+                {
+                    result.Status = WriteResultStatus.Disconnected;
+                    return result;
+                }
+                finally
+                {
+                    client.WriteSemaphore.Release();
+                }
+            });
+
+            bool success = task.Wait(TimeSpan.FromMilliseconds(timeoutMs));
+
+            if (success)
+            {
+                return task.Result;
+            }
+            else
+            {
+                result.Status = WriteResultStatus.Timeout;
                 return result;
             }
-            catch (Exception)
-            {
-                result.Status = WriteResultStatus.Disconnected;
-                return result;
-            }
-            finally
-            {
-                client.WriteSemaphore.Release();
-            } 
         }
 
-        private async Task<WriteResult> SendInternalAsync(string ipPort, long contentLength, Stream stream)
+        private async Task<WriteResult> SendInternalAsync(int timeoutMs, string ipPort, long contentLength, Stream stream)
         {
             ClientMetadata client = null;
 
@@ -681,64 +836,85 @@ namespace CavemanTcp
 
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
 
-            try
-            {
-                client.WriteSemaphore.Wait(1);
+            CancellationTokenSource tokenSource = new CancellationTokenSource();
+            CancellationToken token = tokenSource.Token;
 
-                if (contentLength > 0 && stream != null && stream.CanRead)
+            Task<WriteResult> task = Task.Run(async () =>
+            {
+                try
                 {
-                    long bytesRemaining = contentLength;
+                    client.WriteSemaphore.Wait(1);
 
-                    while (bytesRemaining > 0)
+                    if (contentLength > 0 && stream != null && stream.CanRead)
                     {
-                        byte[] buffer = new byte[_StreamBufferSize];
-                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-                        if (bytesRead > 0)
+                        long bytesRemaining = contentLength;
+
+                        while (bytesRemaining > 0)
                         {
-                            byte[] data = null;
-                            if (bytesRead == buffer.Length)
+                            byte[] buffer = new byte[_StreamBufferSize];
+                            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                            if (bytesRead > 0)
                             {
-                                data = new byte[buffer.Length];
-                                Buffer.BlockCopy(buffer, 0, data, 0, buffer.Length);
-                            }
-                            else
-                            {
-                                data = new byte[bytesRead];
-                                Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
-                            }
+                                byte[] data = null;
+                                if (bytesRead == buffer.Length)
+                                {
+                                    data = new byte[buffer.Length];
+                                    Buffer.BlockCopy(buffer, 0, data, 0, buffer.Length);
+                                }
+                                else
+                                {
+                                    data = new byte[bytesRead];
+                                    Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
+                                }
 
-                            if (!_Ssl)
-                            {
-                                await client.NetworkStream.WriteAsync(data, 0, data.Length);
-                                await client.NetworkStream.FlushAsync();
-                            }
-                            else
-                            {
-                                await client.SslStream.WriteAsync(data, 0, data.Length);
-                                await client.SslStream.FlushAsync();
-                            }
+                                if (!_Ssl)
+                                {
+                                    await client.NetworkStream.WriteAsync(data, 0, data.Length);
+                                    await client.NetworkStream.FlushAsync();
+                                }
+                                else
+                                {
+                                    await client.SslStream.WriteAsync(data, 0, data.Length);
+                                    await client.SslStream.FlushAsync();
+                                }
 
-                            result.BytesWritten += bytesRead;
-                            Stats.SentBytes += bytesRead;
-                            bytesRemaining -= bytesRead;
+                                result.BytesWritten += bytesRead;
+                                Stats.SentBytes += bytesRead;
+                                bytesRemaining -= bytesRead;
+                            }
                         }
-                    } 
-                }
+                    }
 
+                    return result;
+                }
+                catch (Exception)
+                {
+                    result.Status = WriteResultStatus.Disconnected;
+                    return result;
+                }
+                finally
+                {
+                    client.WriteSemaphore.Release();
+                }
+            }, 
+            token);
+
+            Task delay = Task.Delay(timeoutMs, token);
+            Task first = await Task.WhenAny(task, delay);
+            tokenSource.Cancel();
+
+            if (first == task)
+            {
+                return task.Result;
+            }
+            else
+            {
+                result.Status = WriteResultStatus.Timeout;
                 return result;
             }
-            catch (Exception)
-            {
-                result.Status = WriteResultStatus.Disconnected;
-                return result;
-            }
-            finally
-            {
-                client.WriteSemaphore.Release();
-            } 
         }
          
-        private ReadResult ReadInternal(string ipPort, long count)
+        private ReadResult ReadInternal(int timeoutMs, string ipPort, long count)
         {
             if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
 
@@ -756,50 +932,65 @@ namespace CavemanTcp
 
             ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
-            try
+            Task<ReadResult> task = Task.Run(() =>
             {
-                client.ReadSemaphore.Wait(1);
-                MemoryStream ms = new MemoryStream();
-                long bytesRemaining = count;
-
-                while (bytesRemaining > 0)
+                try
                 {
-                    byte[] buffer = null;
-                    if (bytesRemaining >= _StreamBufferSize) buffer = new byte[_StreamBufferSize];
-                    else buffer = new byte[bytesRemaining];
+                    client.ReadSemaphore.Wait(1);
+                    MemoryStream ms = new MemoryStream();
+                    long bytesRemaining = count;
 
-                    int bytesRead = 0;
-                    if (!_Ssl) bytesRead = client.NetworkStream.Read(buffer, 0, buffer.Length);
-                    else bytesRead = client.SslStream.Read(buffer, 0, buffer.Length);
-
-                    if (bytesRead > 0)
+                    while (bytesRemaining > 0)
                     {
-                        if (bytesRead == buffer.Length) ms.Write(buffer, 0, buffer.Length);
-                        else ms.Write(buffer, 0, bytesRead);
+                        byte[] buffer = null;
+                        if (bytesRemaining >= _StreamBufferSize) buffer = new byte[_StreamBufferSize];
+                        else buffer = new byte[bytesRemaining];
 
-                        result.BytesRead += bytesRead;
-                        Stats.ReceivedBytes += bytesRead;
-                        bytesRemaining -= bytesRead;
+                        int bytesRead = 0;
+                        if (!_Ssl) bytesRead = client.NetworkStream.Read(buffer, 0, buffer.Length);
+                        else bytesRead = client.SslStream.Read(buffer, 0, buffer.Length);
+
+                        if (bytesRead > 0)
+                        {
+                            if (bytesRead == buffer.Length) ms.Write(buffer, 0, buffer.Length);
+                            else ms.Write(buffer, 0, bytesRead);
+
+                            result.BytesRead += bytesRead;
+                            Stats.ReceivedBytes += bytesRead;
+                            bytesRemaining -= bytesRead;
+                        }
                     }
-                }
 
-                ms.Seek(0, SeekOrigin.Begin);
-                result.DataStream = ms; 
-                return result;
-            }
-            catch (Exception)
+                    ms.Seek(0, SeekOrigin.Begin);
+                    result.DataStream = ms;
+                    return result;
+                }
+                catch (Exception)
+                {
+                    result.Status = ReadResultStatus.Disconnected;
+                    result.DataStream = null;
+                    return result;
+                }
+                finally
+                {
+                    client.ReadSemaphore.Release();
+                }
+            });
+
+            bool success = task.Wait(TimeSpan.FromMilliseconds(timeoutMs));
+
+            if (success)
             {
-                result.Status = ReadResultStatus.Disconnected; 
-                result.DataStream = null; 
-                return result;
+                return task.Result;
             }
-            finally
+            else
             {
-                client.ReadSemaphore.Release();
+                result.Status = ReadResultStatus.Timeout;
+                return result;
             }
         }
 
-        private async Task<ReadResult> ReadInternalAsync(string ipPort, long count)
+        private async Task<ReadResult> ReadInternalAsync(int timeoutMs, string ipPort, long count)
         {
             if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
 
@@ -817,47 +1008,68 @@ namespace CavemanTcp
 
             ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
-            try
-            {
-                await client.ReadSemaphore.WaitAsync(1);
-                MemoryStream ms = new MemoryStream();
-                long bytesRemaining = count;
+            CancellationTokenSource tokenSource = new CancellationTokenSource();
+            CancellationToken token = tokenSource.Token;
 
-                while (bytesRemaining > 0)
+            Task<ReadResult> task = Task.Run(async () =>
+            {
+                try
                 {
-                    byte[] buffer = null;
-                    if (bytesRemaining >= _StreamBufferSize) buffer = new byte[_StreamBufferSize];
-                    else buffer = new byte[bytesRemaining];
+                    await client.ReadSemaphore.WaitAsync(1);
+                    MemoryStream ms = new MemoryStream();
+                    long bytesRemaining = count;
 
-                    int bytesRead = 0;
-                    if (!_Ssl) bytesRead = await client.NetworkStream.ReadAsync(buffer, 0, buffer.Length);
-                    else bytesRead = await client.SslStream.ReadAsync(buffer, 0, buffer.Length);
-
-                    if (bytesRead > 0)
+                    while (bytesRemaining > 0)
                     {
-                        if (bytesRead == buffer.Length) await ms.WriteAsync(buffer, 0, buffer.Length);
-                        else await ms.WriteAsync(buffer, 0, bytesRead);
+                        byte[] buffer = null;
+                        if (bytesRemaining >= _StreamBufferSize) buffer = new byte[_StreamBufferSize];
+                        else buffer = new byte[bytesRemaining];
 
-                        result.BytesRead += bytesRead;
-                        Stats.ReceivedBytes += bytesRead;
-                        bytesRemaining -= bytesRead;
+                        int bytesRead = 0;
+                        if (!_Ssl) bytesRead = await client.NetworkStream.ReadAsync(buffer, 0, buffer.Length);
+                        else bytesRead = await client.SslStream.ReadAsync(buffer, 0, buffer.Length);
+
+                        if (bytesRead > 0)
+                        {
+                            if (bytesRead == buffer.Length) await ms.WriteAsync(buffer, 0, buffer.Length);
+                            else await ms.WriteAsync(buffer, 0, bytesRead);
+
+                            result.BytesRead += bytesRead;
+                            Stats.ReceivedBytes += bytesRead;
+                            bytesRemaining -= bytesRead;
+                        }
                     }
-                }
 
-                ms.Seek(0, SeekOrigin.Begin);
-                result.DataStream = ms; 
-                return result;
-            }
-            catch (Exception)
+                    ms.Seek(0, SeekOrigin.Begin);
+                    result.DataStream = ms;
+                    return result;
+                }
+                catch (Exception)
+                {
+                    result.Status = ReadResultStatus.Disconnected;
+                    result.BytesRead = 0;
+                    result.DataStream = null;
+                    return result;
+                }
+                finally
+                {
+                    client.ReadSemaphore.Release();
+                }
+            },
+            token);
+
+            Task delay = Task.Delay(timeoutMs, token);
+            Task first = await Task.WhenAny(task, delay);
+            tokenSource.Cancel();
+
+            if (first == task)
             {
-                result.Status = ReadResultStatus.Disconnected;
-                result.BytesRead = 0;
-                result.DataStream = null;
-                return result;
+                return task.Result;
             }
-            finally
+            else
             {
-                client.ReadSemaphore.Release();
+                result.Status = ReadResultStatus.Timeout;
+                return result;
             }
         }
 

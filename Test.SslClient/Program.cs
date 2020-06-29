@@ -25,13 +25,15 @@ namespace Test.SslClient
                 {
                     Console.WriteLine("-- Available Commands --");
                     Console.WriteLine("");
-                    Console.WriteLine("   cls             Clear the screen");
-                    Console.WriteLine("   q               Quit the program");
-                    Console.WriteLine("   send [data]     Send data to the server");
-                    Console.WriteLine("   read [count]    Read [count] bytes from the server");
-                    Console.WriteLine("   dispose         Dispose of the client");
-                    Console.WriteLine("   start           Start the client (connected: " + (_Client != null ? _Client.IsConnected.ToString() : "false") + ")");
-                    Console.WriteLine("   stats           Retrieve statistics");
+                    Console.WriteLine("   cls                  Clear the screen");
+                    Console.WriteLine("   q                    Quit the program");
+                    Console.WriteLine("   send [data]          Send data to the server");
+                    Console.WriteLine("   sendt [ms] [data]    Send data to the server with specified timeout");
+                    Console.WriteLine("   read [count]         Read [count] bytes from the server");
+                    Console.WriteLine("   readt [ms] [count]   Read [count] bytes from the server with specified timeout");
+                    Console.WriteLine("   dispose              Dispose of the client");
+                    Console.WriteLine("   start                Start the client (connected: " + (_Client != null ? _Client.IsConnected.ToString() : "false") + ")");
+                    Console.WriteLine("   stats                Retrieve statistics");
                     Console.WriteLine("");
                     continue;
                 }
@@ -53,7 +55,24 @@ namespace Test.SslClient
                     string[] parts = userInput.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
                     string data = parts[1];
 
-                    _Client.Send(data);
+                    WriteResult wr = _Client.Send(data);
+                    if (wr.Status == WriteResultStatus.Success)
+                        Console.WriteLine("Success");
+                    else
+                        Console.WriteLine("Non-success status: " + wr.Status);
+                }
+
+                if (userInput.StartsWith("sendt "))
+                {
+                    string[] parts = userInput.Split(new char[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
+                    int timeoutMs = Convert.ToInt32(parts[1]);
+                    string data = parts[2];
+
+                    WriteResult wr = _Client.SendWithTimeout(timeoutMs, data);
+                    if (wr.Status == WriteResultStatus.Success)
+                        Console.WriteLine("Success");
+                    else
+                        Console.WriteLine("Non-success status: " + wr.Status);
                 }
 
                 if (userInput.StartsWith("read "))
@@ -62,6 +81,19 @@ namespace Test.SslClient
                     int count = Convert.ToInt32(parts[1]);
 
                     ReadResult rr = _Client.Read(count);
+                    if (rr.Status == ReadResultStatus.Success)
+                        Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
+                    else
+                        Console.WriteLine("Non-success status: " + rr.Status.ToString());
+                }
+
+                if (userInput.StartsWith("readt "))
+                {
+                    string[] parts = userInput.Split(new char[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
+                    int timeoutMs = Convert.ToInt32(parts[1]);
+                    int count = Convert.ToInt32(parts[2]);
+
+                    ReadResult rr = _Client.ReadWithTimeout(timeoutMs, count);
                     if (rr.Status == ReadResultStatus.Success)
                         Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
                     else

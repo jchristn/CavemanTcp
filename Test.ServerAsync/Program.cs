@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using CavemanTcp;
 
-namespace Test.Server
+namespace Test.ServerAsync
 {
     class Program
     {
@@ -80,7 +80,7 @@ namespace Test.Server
                     if (ipPort.Equals("last")) ipPort = _LastClient;
                     string data = parts[2];
 
-                    WriteResult wr = _Server.Send(ipPort, data);
+                    WriteResult wr = _Server.SendAsync(ipPort, data).Result;
                     if (wr.Status == WriteResultStatus.Success)
                         Console.WriteLine("Success");
                     else
@@ -95,7 +95,7 @@ namespace Test.Server
                     if (ipPort.Equals("last")) ipPort = _LastClient;
                     string data = parts[3];
 
-                    WriteResult wr = _Server.SendWithTimeout(timeoutMs, ipPort, data);
+                    WriteResult wr = _Server.SendWithTimeoutAsync(timeoutMs, ipPort, data).Result;
                     if (wr.Status == WriteResultStatus.Success)
                         Console.WriteLine("Success");
                     else
@@ -109,7 +109,7 @@ namespace Test.Server
                     if (ipPort.Equals("last")) ipPort = _LastClient;
                     int count = Convert.ToInt32(parts[2]);
 
-                    ReadResult rr = _Server.Read(ipPort, count);
+                    ReadResult rr = _Server.ReadAsync(ipPort, count).Result;
                     if (rr.Status == ReadResultStatus.Success)
                         Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
                     else
@@ -124,7 +124,7 @@ namespace Test.Server
                     if (ipPort.Equals("last")) ipPort = _LastClient;
                     int count = Convert.ToInt32(parts[3]);
 
-                    ReadResult rr = _Server.ReadWithTimeout(timeoutMs, ipPort, count);
+                    ReadResult rr = _Server.ReadWithTimeoutAsync(timeoutMs, ipPort, count).Result;
                     if (rr.Status == ReadResultStatus.Success)
                         Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
                     else
@@ -135,14 +135,13 @@ namespace Test.Server
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
                     string ipPort = parts[1];
-                    if (ipPort.Equals("last")) ipPort = _LastClient;
 
                     _Server.DisconnectClient(ipPort);
                 }
 
                 if (userInput.Equals("dispose"))
                 {
-                    _Server.Dispose(); 
+                    _Server.Dispose();
                 }
 
                 if (userInput.Equals("start"))

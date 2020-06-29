@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net461</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.1.1</Version>
+    <Version>1.2.0</Version>
     <Authors>Joel Christner</Authors>
     <Description>CavemanTcp is a simple TCP client and server providing easy integration and full control over network reads and writes, allowing you to build your own state machines with ease.</Description>
     <Copyright>(c)2020 Joel Christner</Copyright>
@@ -12,7 +12,7 @@
     <RepositoryUrl>https://github.com/jchristn/cavemantcp</RepositoryUrl>
     <RepositoryType>Github</RepositoryType>
     <PackageTags>tcp messaging socket message sockets api rpc</PackageTags>
-    <PackageReleaseNotes>Disable mutual authentication by default for SSL</PackageReleaseNotes>
+    <PackageReleaseNotes>Send and receive methods with timeout</PackageReleaseNotes>
     <PackageId>CavemanTcp</PackageId>
     <Product>CavemanTcp</Product>
     <PackageIconUrl>https://raw.githubusercontent.com/jchristn/CavemanTcp/master/assets/icon.ico</PackageIconUrl>

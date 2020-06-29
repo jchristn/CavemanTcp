@@ -2,7 +2,7 @@
 using System.Text;
 using CavemanTcp;
 
-namespace Test.Client
+namespace Test.ClientAsync
 {
     class Program
     {
@@ -11,12 +11,12 @@ namespace Test.Client
 
         static void Main(string[] args)
         {
-            InitializeClient(); 
+            InitializeClient();
             Console.WriteLine("Connecting to tcp://127.0.0.1:8000");
             _Client.Connect(10);
-            
+
             while (_RunForever)
-            { 
+            {
                 Console.Write("Command [? for help]: ");
                 string userInput = Console.ReadLine();
                 if (String.IsNullOrEmpty(userInput)) continue;
@@ -41,7 +41,7 @@ namespace Test.Client
                 if (userInput.Equals("c") || userInput.Equals("cls"))
                 {
                     Console.Clear();
-                    continue; 
+                    continue;
                 }
 
                 if (userInput.Equals("q"))
@@ -55,7 +55,7 @@ namespace Test.Client
                     string[] parts = userInput.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
                     string data = parts[1];
 
-                    WriteResult wr = _Client.Send(data);
+                    WriteResult wr = _Client.SendAsync(data).Result;
                     if (wr.Status == WriteResultStatus.Success)
                         Console.WriteLine("Success");
                     else
@@ -68,7 +68,7 @@ namespace Test.Client
                     int timeoutMs = Convert.ToInt32(parts[1]);
                     string data = parts[2];
 
-                    WriteResult wr = _Client.SendWithTimeout(timeoutMs, data);
+                    WriteResult wr = _Client.SendWithTimeoutAsync(timeoutMs, data).Result;
                     if (wr.Status == WriteResultStatus.Success)
                         Console.WriteLine("Success");
                     else
@@ -80,7 +80,7 @@ namespace Test.Client
                     string[] parts = userInput.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
                     int count = Convert.ToInt32(parts[1]);
 
-                    ReadResult rr = _Client.Read(count);
+                    ReadResult rr = _Client.ReadAsync(count).Result;
                     if (rr.Status == ReadResultStatus.Success)
                         Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
                     else
@@ -93,7 +93,7 @@ namespace Test.Client
                     int timeoutMs = Convert.ToInt32(parts[1]);
                     int count = Convert.ToInt32(parts[2]);
 
-                    ReadResult rr = _Client.ReadWithTimeout(timeoutMs, count);
+                    ReadResult rr = _Client.ReadWithTimeoutAsync(timeoutMs, count).Result;
                     if (rr.Status == ReadResultStatus.Success)
                         Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
                     else
@@ -117,7 +117,7 @@ namespace Test.Client
                 }
             }
         }
-         
+
         static void InitializeClient()
         {
             _Client = new TcpClient("127.0.0.1", 8000, false, null, null);
