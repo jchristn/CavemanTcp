@@ -130,6 +130,13 @@ It is important to understand what a timeout indicates and more important what i
 - A timeout on a write operation has **nothing to do with whether or not the recipient read the data**.  Rather it is whether or not CavemanTcp was able to write the data to the underlying ```NetworkStream``` or ```SslStream```
 - A timeout on a read operation will occur if CavemanTcp is unable to read the specified number of bytes from the underlying ```NetworkStream``` or ```SslStream``` in the allotted number of milliseconds
 - Valid values for ```timeoutMs``` are ```-1``` or any positive integer.  ```-1``` indicates no timeout and is the same as using an API that doesn't specify a timeout
+- Pay close attention to either ```BytesRead``` or ```BytesWritten``` (if you were reading or writing) in the event of a timeout.  The timeout may have occurred mid-operation and therefore it will be important to recover from the failure.
+  - For example, server sends client 50,000 bytes
+  - On the client, a ```ReadWithTimeout``` was initiated with a 10 second timeout
+  - In that 10 seconds, the client was only able to read 30,000 bytes
+  - A ```ReadResult``` with ```Status == ReadResultStatus.Timeout``` is returned, and the ```BytesRead``` property is set to 30,000
+  - In this case, **there are still 20,000 bytes from the server waiting in the client's underlying ```NetworkStream``` or ```SslStream```**
+  - As such, it is recommended that, upon timeout, you reset the connection (but this is your choice)
 
 ## Help or Feedback
 
