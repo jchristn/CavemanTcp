@@ -1,12 +1,16 @@
 # Change Log
 
 ## Current Version
- 
+
+v1.1.1
+
+- Disable MutuallyAuthenticate for SSL by default
+
+## Previous Versions
+
 v1.1.0
 
 - Breaking changes; read now returns ReadResult and write now returns WriteResult
-
-## Previous Versions
 
 v1.0.3
 

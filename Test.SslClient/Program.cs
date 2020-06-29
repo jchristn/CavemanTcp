@@ -88,7 +88,7 @@ namespace Test.SslClient
 
         static void InitializeClient()
         {
-            _Client = new TcpClient("127.0.0.1", 8000, true, "caveman.pfx", "simpletcp");
+            _Client = new TcpClient("127.0.0.1", 8000, true, "cavemantcp.pfx", "simpletcp");
             _Client.Logger = Logger;
 
             _Client.ClientConnected += (s, e) =>

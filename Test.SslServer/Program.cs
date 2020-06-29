@@ -121,7 +121,7 @@ namespace Test.SslServer
 
         static void InitializeServer()
         {
-            _Server = new TcpServer("127.0.0.1", 8000, true, "caveman.pfx", "simpletcp");
+            _Server = new TcpServer("127.0.0.1", 8000, true, "cavemantcp.pfx", "simpletcp");
             _Server.Logger = Logger;
 
             _Server.ClientConnected += (s, e) =>

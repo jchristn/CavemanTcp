@@ -57,7 +57,7 @@ namespace CavemanTcp
         /// <summary>
         /// Enable or disable mutual authentication of SSL client and server.
         /// </summary>
-        public bool MutuallyAuthenticate = true;
+        public bool MutuallyAuthenticate = false;
 
         /// <summary>
         /// Event to fire when a client connects.  A string containing the client IP:port will be passed.
