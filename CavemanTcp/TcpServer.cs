@@ -50,6 +50,11 @@ namespace CavemanTcp
         }
 
         /// <summary>
+        /// Enable client connection monitoring, which checks connectivity every second.
+        /// </summary>
+        public bool MonitorClientConnections = true;
+
+        /// <summary>
         /// Enable or disable acceptance of invalid SSL certificates.
         /// </summary>
         public bool AcceptInvalidCertificates = true;
@@ -645,8 +650,12 @@ namespace CavemanTcp
                             _Clients.Add(clientIp, client);
                         }
 
-                        Logger?.Invoke(_Header + "Starting connection monitor for: " + clientIp);
-                        Task clientMonitorTask = Task.Run(() => ClientConnectionMonitor(client), client.Token); 
+                        if (MonitorClientConnections)
+                        {
+                            Logger?.Invoke(_Header + "Starting connection monitor for: " + clientIp);
+                            Task clientMonitorTask = Task.Run(() => ClientConnectionMonitor(client), client.Token);
+                        }
+
                         ClientConnected?.Invoke(this, new ClientConnectedEventArgs(clientIp));
                     }, 
                     client.Token);
@@ -654,6 +663,7 @@ namespace CavemanTcp
                 }
                 catch (OperationCanceledException)
                 {
+                    if (client != null) client.Dispose();
                     return;
                 }
                 catch (ObjectDisposedException)
@@ -684,29 +694,25 @@ namespace CavemanTcp
 
                 if (!client.SslStream.IsEncrypted)
                 {
-                    Logger?.Invoke(_Header + "Client " + client.IpPort + " not encrypted, disconnecting");
-                    client.Dispose();
+                    Logger?.Invoke(_Header + "Client " + client.IpPort + " not encrypted, disconnecting"); 
                     return false;
                 }
 
                 if (!client.SslStream.IsAuthenticated)
                 {
-                    Logger?.Invoke(_Header + "Client " + client.IpPort + " not SSL/TLS authenticated, disconnecting");
-                    client.Dispose();
+                    Logger?.Invoke(_Header + "Client " + client.IpPort + " not SSL/TLS authenticated, disconnecting"); 
                     return false;
                 }
 
                 if (MutuallyAuthenticate && !client.SslStream.IsMutuallyAuthenticated)
                 {
-                    Logger?.Invoke(_Header + "Client " + client.IpPort + " failed mutual authentication, disconnecting");
-                    client.Dispose();
+                    Logger?.Invoke(_Header + "Client " + client.IpPort + " failed mutual authentication, disconnecting"); 
                     return false;
                 }
             }
             catch (Exception e)
             {
-                Logger?.Invoke(_Header + "Client " + client.IpPort + " SSL/TLS exception: " + Environment.NewLine + e.ToString());
-                client.Dispose();
+                Logger?.Invoke(_Header + "Client " + client.IpPort + " SSL/TLS exception: " + Environment.NewLine + e.ToString()); 
                 return false;
             }
 
