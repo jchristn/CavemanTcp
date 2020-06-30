@@ -16,8 +16,9 @@ Important:
 
 Since CavemanTcp relies on the consuming application to specify when to read or write, there are no background threads continually monitoring the state of the TCP connection (unlike SimpleTcp and WatsonTcp).  Thus, you should build your apps on the expectation that an exception may be thrown while in the middle of a read or write.
 
-## New in v1.2.0
+## New in v1.2.1
 
+- Better threading for scalability
 - ```SendWithTimeout```, ```SendWithTimeoutAsync```, ```ReadWithTimeout```, and ```ReadWithTimeoutAsync``` APIs
 - Async test client and server
 - Disable MutuallyAuthenticate for SSL by default on the client

@@ -644,9 +644,10 @@ namespace CavemanTcp
                         _Clients.Add(clientIp, client);
                     }
                      
-                    Logger?.Invoke("Starting connection monitor for: " + clientIp);
-                    Task unawaited = Task.Run(() => ClientConnectionMonitor(client), client.Token);
-                    ClientConnected?.Invoke(this, new ClientConnectedEventArgs(clientIp));
+                    Logger?.Invoke(_Header + "Starting connection monitor for: " + clientIp);
+                    Task unawaited1 = Task.Run(() => ClientConnectionMonitor(client), client.Token);
+                    Task unawaited2 = null;
+                    if (ClientConnected != null) unawaited2 = Task.Run(() => ClientConnected(this, new ClientConnectedEventArgs(clientIp)), _Token);
                 }
                 catch (OperationCanceledException)
                 {
