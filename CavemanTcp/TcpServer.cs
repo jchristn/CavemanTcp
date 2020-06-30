@@ -616,38 +616,41 @@ namespace CavemanTcp
                 try
                 {
                     System.Net.Sockets.TcpClient tcpClient = await _Listener.AcceptTcpClientAsync(); 
-                    string clientIp = tcpClient.Client.RemoteEndPoint.ToString();
-
-                    client = new ClientMetadata(tcpClient);
-
-                    if (_Ssl)
+                    client = new ClientMetadata(tcpClient); 
+                    Task clientTask = Task.Run(async () =>
                     {
-                        if (AcceptInvalidCertificates)
-                        { 
-                            client.SslStream = new SslStream(client.NetworkStream, false, new RemoteCertificateValidationCallback(AcceptCertificate));
-                        }
-                        else
-                        { 
-                            client.SslStream = new SslStream(client.NetworkStream, false);
-                        }
+                        string clientIp = tcpClient.Client.RemoteEndPoint.ToString();
 
-                        bool success = await StartTls(client);
-                        if (!success)
+                        if (_Ssl)
                         {
-                            client.Dispose();
-                            continue;
-                        }
-                    }
+                            if (AcceptInvalidCertificates)
+                            {
+                                client.SslStream = new SslStream(client.NetworkStream, false, new RemoteCertificateValidationCallback(AcceptCertificate));
+                            }
+                            else
+                            {
+                                client.SslStream = new SslStream(client.NetworkStream, false);
+                            }
 
-                    lock (_Clients)
-                    {
-                        _Clients.Add(clientIp, client);
-                    }
-                     
-                    Logger?.Invoke(_Header + "Starting connection monitor for: " + clientIp);
-                    Task unawaited1 = Task.Run(() => ClientConnectionMonitor(client), client.Token);
-                    Task unawaited2 = null;
-                    if (ClientConnected != null) unawaited2 = Task.Run(() => ClientConnected(this, new ClientConnectedEventArgs(clientIp)), _Token);
+                            bool success = await StartTls(client);
+                            if (!success)
+                            {
+                                client.Dispose();
+                                return;
+                            }
+                        }
+
+                        lock (_Clients)
+                        {
+                            _Clients.Add(clientIp, client);
+                        }
+
+                        Logger?.Invoke(_Header + "Starting connection monitor for: " + clientIp);
+                        Task clientMonitorTask = Task.Run(() => ClientConnectionMonitor(client), client.Token); 
+                        ClientConnected?.Invoke(this, new ClientConnectedEventArgs(clientIp));
+                    }, 
+                    client.Token);
+
                 }
                 catch (OperationCanceledException)
                 {
