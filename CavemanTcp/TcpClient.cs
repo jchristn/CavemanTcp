@@ -98,8 +98,8 @@ namespace CavemanTcp
         private X509Certificate2 _SslCert = null;
         private X509Certificate2Collection _SslCertCollection;
 
-        private SemaphoreSlim _WriteSemaphore = new SemaphoreSlim(1);
-        private SemaphoreSlim _ReadSemaphore = new SemaphoreSlim(1);
+        private SemaphoreSlim _WriteSemaphore = new SemaphoreSlim(1, 1);
+        private SemaphoreSlim _ReadSemaphore = new SemaphoreSlim(1, 1);
          
         #endregion
 

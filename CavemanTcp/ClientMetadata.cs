@@ -54,8 +54,8 @@ namespace CavemanTcp
         private NetworkStream _NetworkStream = null;
         private SslStream _SslStream = null;
         private string _IpPort = null;
-        private SemaphoreSlim _ReadSemaphore = new SemaphoreSlim(1);
-        private SemaphoreSlim _WriteSemaphore = new SemaphoreSlim(1);
+        private SemaphoreSlim _ReadSemaphore = new SemaphoreSlim(1, 1);
+        private SemaphoreSlim _WriteSemaphore = new SemaphoreSlim(1, 1);
 
         #endregion
 

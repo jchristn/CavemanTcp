@@ -813,7 +813,7 @@ namespace CavemanTcp
                 }
                 finally
                 {
-                    client.WriteSemaphore.Release();
+                    if (client != null) client.WriteSemaphore.Release();
                 }
             });
 
@@ -904,7 +904,7 @@ namespace CavemanTcp
                 }
                 finally
                 {
-                    client.WriteSemaphore.Release();
+                    if (client != null) client.WriteSemaphore.Release();
                 }
             }, 
             token);
@@ -983,7 +983,7 @@ namespace CavemanTcp
                 }
                 finally
                 {
-                    client.ReadSemaphore.Release();
+                    if (client != null) client.ReadSemaphore.Release();
                 }
             });
 
@@ -1063,7 +1063,7 @@ namespace CavemanTcp
                 }
                 finally
                 {
-                    client.ReadSemaphore.Release();
+                    if (client != null) client.ReadSemaphore.Release();
                 }
             },
             token);
