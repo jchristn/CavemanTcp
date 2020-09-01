@@ -7,7 +7,7 @@ namespace CavemanTcp
     /// <summary>
     /// CavemanTcp statistics.
     /// </summary>
-    public class Statistics
+    public class CavemanTcpStatistics
     {
         #region Public-Members
 
@@ -78,7 +78,7 @@ namespace CavemanTcp
         /// <summary>
         /// Initialize the statistics object.
         /// </summary>
-        public Statistics()
+        public CavemanTcpStatistics()
         {
 
         }

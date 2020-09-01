@@ -2,11 +2,18 @@
 
 ## Current Version
 
+v1.3.0
+
+- Breaking changes
+- Retarget to include .NET Core 3.1 (in addition to .NET Standard and .NET Framework)
+- Consolidated settings and events into their own separate classes
+- Added support for TCP keepalives
+
+## Previous Versions
+
 v1.2.1
 
 - Better threading for scalability
-
-## Previous Versions
 
 v1.2.0
 

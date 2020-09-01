@@ -18,7 +18,7 @@ namespace CavemanTcp
     /// CavemanTcp is a simple TCP client and server providing callers with easy integration and full control over network reads and writes.
     /// Set the ClientConnected and ClientDisconnected callbacks, then, use Start() to begin listening for connections.
     /// </summary>
-    public class TcpServer : IDisposable
+    public class CavemanTcpServer : IDisposable
     {
         #region Public-Members
 
@@ -34,61 +34,71 @@ namespace CavemanTcp
         }
 
         /// <summary>
-        /// Buffer size to use while interacting with streams.
-        /// </summary>
-        public int StreamBufferSize
-        {
-            get
-            {
-                return _StreamBufferSize;
-            }
-            set
-            {
-                if (value < 1) throw new ArgumentException("StreamBufferSize must be greater than zero.");
-                _StreamBufferSize = value;
-            }
-        }
-
-        /// <summary>
-        /// Enable client connection monitoring, which checks connectivity every second.
-        /// </summary>
-        public bool MonitorClientConnections = true;
-
-        /// <summary>
-        /// Enable or disable acceptance of invalid SSL certificates.
-        /// </summary>
-        public bool AcceptInvalidCertificates = true;
-
-        /// <summary>
-        /// Enable or disable mutual authentication of SSL client and server.
-        /// </summary>
-        public bool MutuallyAuthenticate = false;
-
-        /// <summary>
-        /// Event to fire when a client connects.  A string containing the client IP:port will be passed.
-        /// </summary>
-        public event EventHandler<ClientConnectedEventArgs> ClientConnected;
-
-        /// <summary>
-        /// Event to fire when a client disconnects.  A string containing the client IP:port will be passed.
-        /// </summary>
-        public event EventHandler<ClientDisconnectedEventArgs> ClientDisconnected;
-
-        /// <summary>
         /// Method to invoke when sending log messages.
         /// </summary>
         public Action<string> Logger = null;
 
         /// <summary>
+        /// CavemanTcp server settings.
+        /// </summary>
+        public CavemanTcpServerSettings Settings
+        {
+            get
+            {
+                return _Settings;
+            }
+            set
+            {
+                if (value == null) _Settings = new CavemanTcpServerSettings();
+                else _Settings = value;
+            }
+        }
+
+        /// <summary>
+        /// CavemanTcp server events.
+        /// </summary>
+        public CavemanTcpServerEvents Events
+        {
+            get
+            {
+                return _Events;
+            }
+            set
+            {
+                if (value == null) _Events = new CavemanTcpServerEvents();
+                else _Events = value;
+            }
+        }
+
+        /// <summary>
         /// CavemanTcp statistics.
         /// </summary>
-        public Statistics Stats = new Statistics();
+        public CavemanTcpStatistics Statistics = new CavemanTcpStatistics();
+
+        /// <summary>
+        /// CavemanTcp keepalive settings.
+        /// </summary>
+        public CavemanTcpKeepaliveSettings Keepalive
+        {
+            get
+            {
+                return _Keepalive;
+            }
+            set
+            {
+                if (value == null) _Keepalive = new CavemanTcpKeepaliveSettings();
+                else _Keepalive = value;
+            }
+        }
 
         #endregion
 
         #region Private-Members
 
-        private int _StreamBufferSize = 65536;
+        private CavemanTcpServerSettings _Settings = new CavemanTcpServerSettings();
+        private CavemanTcpServerEvents _Events = new CavemanTcpServerEvents();
+        private CavemanTcpKeepaliveSettings _Keepalive = new CavemanTcpKeepaliveSettings();
+
         private string _Header = "[CavemanTcp.Server] ";
         private bool _IsListening = false;
         private string _ListenerIp;
@@ -120,7 +130,7 @@ namespace CavemanTcp
         /// <param name="ssl">Enable or disable SSL.</param>
         /// <param name="pfxCertFilename">The filename of the PFX certificate file.</param>
         /// <param name="pfxPassword">The password to the PFX certificate file.</param>
-        public TcpServer(string listenerIp, int port, bool ssl, string pfxCertFilename, string pfxPassword)
+        public CavemanTcpServer(string listenerIp, int port, bool ssl, string pfxCertFilename, string pfxPassword)
         {
             if (String.IsNullOrEmpty(listenerIp)) throw new ArgumentNullException(nameof(listenerIp));
             if (port < 0) throw new ArgumentException("Port must be zero or greater.");
@@ -193,11 +203,14 @@ namespace CavemanTcp
             if (_IsListening) throw new InvalidOperationException("TcpServer is already running.");
 
             _Listener = new TcpListener(_IPAddress, _Port);
+
+            if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
+
             _Listener.Start();
 
             _Clients = new Dictionary<string, ClientMetadata>();
 
-            Stats = new Statistics();
+            Statistics = new CavemanTcpStatistics();
             Task.Run(() => AcceptConnections(), _Token);
 
             _IsListening = true;
@@ -456,7 +469,7 @@ namespace CavemanTcp
                 Logger?.Invoke(_Header + "Removed: " + ipPort); 
             }
 
-            ClientDisconnected?.Invoke(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Kicked));
+            _Events.HandleClientDisconnected(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Kicked));
         }
 
         /// <summary>
@@ -628,7 +641,7 @@ namespace CavemanTcp
 
                         if (_Ssl)
                         {
-                            if (AcceptInvalidCertificates)
+                            if (_Settings.AcceptInvalidCertificates)
                             {
                                 client.SslStream = new SslStream(client.NetworkStream, false, new RemoteCertificateValidationCallback(AcceptCertificate));
                             }
@@ -650,13 +663,13 @@ namespace CavemanTcp
                             _Clients.Add(clientIp, client);
                         }
 
-                        if (MonitorClientConnections)
+                        if (_Settings.MonitorClientConnections)
                         {
                             Logger?.Invoke(_Header + "Starting connection monitor for: " + clientIp);
                             Task clientMonitorTask = Task.Run(() => ClientConnectionMonitor(client), client.Token);
                         }
 
-                        ClientConnected?.Invoke(this, new ClientConnectedEventArgs(clientIp));
+                        _Events.HandleClientConnected(this, new ClientConnectedEventArgs(clientIp));
                     }, 
                     client.Token);
 
@@ -687,10 +700,10 @@ namespace CavemanTcp
             try
             { 
                 await client.SslStream.AuthenticateAsServerAsync(
-                    _SslCertificate, 
-                    MutuallyAuthenticate, 
+                    _SslCertificate,
+                    _Settings.MutuallyAuthenticate, 
                     SslProtocols.Tls12, 
-                    !AcceptInvalidCertificates);
+                    !_Settings.AcceptInvalidCertificates);
 
                 if (!client.SslStream.IsEncrypted)
                 {
@@ -704,7 +717,7 @@ namespace CavemanTcp
                     return false;
                 }
 
-                if (MutuallyAuthenticate && !client.SslStream.IsMutuallyAuthenticated)
+                if (_Settings.MutuallyAuthenticate && !client.SslStream.IsMutuallyAuthenticated)
                 {
                     Logger?.Invoke(_Header + "Client " + client.IpPort + " failed mutual authentication, disconnecting"); 
                     return false;
@@ -722,7 +735,7 @@ namespace CavemanTcp
         private bool AcceptCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             // return true; // Allow untrusted certificates.
-            return AcceptInvalidCertificates;
+            return _Settings.AcceptInvalidCertificates;
         }
           
         private void ClientConnectionMonitor(ClientMetadata client)
@@ -770,7 +783,7 @@ namespace CavemanTcp
 
                         while (bytesRemaining > 0)
                         {
-                            byte[] buffer = new byte[_StreamBufferSize];
+                            byte[] buffer = new byte[_Settings.StreamBufferSize];
                             int bytesRead = stream.Read(buffer, 0, buffer.Length);
                             if (bytesRead > 0)
                             {
@@ -798,7 +811,7 @@ namespace CavemanTcp
                                 }
 
                                 result.BytesWritten += bytesRead;
-                                Stats.SentBytes += bytesRead;
+                                Statistics.SentBytes += bytesRead;
                                 bytesRemaining -= bytesRead;
                             }
                         }
@@ -861,7 +874,7 @@ namespace CavemanTcp
 
                         while (bytesRemaining > 0)
                         {
-                            byte[] buffer = new byte[_StreamBufferSize];
+                            byte[] buffer = new byte[_Settings.StreamBufferSize];
                             int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
                             if (bytesRead > 0)
                             {
@@ -889,7 +902,7 @@ namespace CavemanTcp
                                 }
 
                                 result.BytesWritten += bytesRead;
-                                Stats.SentBytes += bytesRead;
+                                Statistics.SentBytes += bytesRead;
                                 bytesRemaining -= bytesRead;
                             }
                         }
@@ -953,7 +966,7 @@ namespace CavemanTcp
                     while (bytesRemaining > 0)
                     {
                         byte[] buffer = null;
-                        if (bytesRemaining >= _StreamBufferSize) buffer = new byte[_StreamBufferSize];
+                        if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
                         else buffer = new byte[bytesRemaining];
 
                         int bytesRead = 0;
@@ -966,7 +979,7 @@ namespace CavemanTcp
                             else ms.Write(buffer, 0, bytesRead);
 
                             result.BytesRead += bytesRead;
-                            Stats.ReceivedBytes += bytesRead;
+                            Statistics.ReceivedBytes += bytesRead;
                             bytesRemaining -= bytesRead;
                         }
                     }
@@ -1032,7 +1045,7 @@ namespace CavemanTcp
                     while (bytesRemaining > 0)
                     {
                         byte[] buffer = null;
-                        if (bytesRemaining >= _StreamBufferSize) buffer = new byte[_StreamBufferSize];
+                        if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
                         else buffer = new byte[bytesRemaining];
 
                         int bytesRead = 0;
@@ -1045,7 +1058,7 @@ namespace CavemanTcp
                             else await ms.WriteAsync(buffer, 0, bytesRead);
 
                             result.BytesRead += bytesRead;
-                            Stats.ReceivedBytes += bytesRead;
+                            Statistics.ReceivedBytes += bytesRead;
                             bytesRemaining -= bytesRead;
                         }
                     }
@@ -1081,6 +1094,36 @@ namespace CavemanTcp
                 result.Status = ReadResultStatus.Timeout;
                 return result;
             }
+        }
+
+        private void EnableKeepalives()
+        {
+#if NETCOREAPP
+
+            _Listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+            _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, _Keepalive.TcpKeepAliveTime); 
+            _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, _Keepalive.TcpKeepAliveInterval);
+            _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, _Keepalive.TcpKeepAliveRetryCount);
+
+#elif NETFRAMEWORK 
+
+            byte[] keepAlive = new byte[12];
+
+            // Turn keepalive on
+            Buffer.BlockCopy(BitConverter.GetBytes((uint)1), 0, keepAlive, 0, 4);
+
+            // Set TCP keepalive time
+            Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveTime), 0, keepAlive, 4, 4); 
+
+            // Set TCP keepalive interval
+            Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveInterval), 0, keepAlive, 8, 4); 
+
+            // Set keepalive settings on the underlying Socket
+            _Listener.Server.IOControl(IOControlCode.KeepAliveValues, keepAlive, null);
+
+#elif NETSTANDARD
+
+#endif
         }
 
         #endregion

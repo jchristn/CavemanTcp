@@ -16,13 +16,15 @@ Important:
 
 Since CavemanTcp relies on the consuming application to specify when to read or write, there are no background threads continually monitoring the state of the TCP connection (unlike SimpleTcp and WatsonTcp).  Thus, you should build your apps on the expectation that an exception may be thrown while in the middle of a read or write.
 
-## New in v1.2.1
+As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; unfortunately .NET Standard does not offer this support, so it is not present for apps using CavemanTcp targeted to .NET Standard.
 
-- Better threading for scalability
-- ```SendWithTimeout```, ```SendWithTimeoutAsync```, ```ReadWithTimeout```, and ```ReadWithTimeoutAsync``` APIs
-- Async test client and server
-- Disable MutuallyAuthenticate for SSL by default on the client
+## New in v1.3.0
 
+- Breaking changes
+- Retarget to include .NET Core 3.1 (in addition to .NET Standard and .NET Framework)
+- Consolidated settings and events into their own separate classes
+- Added support for TCP keepalives
+ 
 ## Examples
 
 ### Server Example
@@ -34,12 +36,11 @@ TcpServer server = new TcpServer("127.0.0.1", 8000, false, null, null);
 server.Logger = Logger;
 
 // Set callbacks
-server.ClientConnected += (s, e) => 
+server.Events.ClientConnected += (s, e) => 
 { 
     Console.WriteLine("Client " + e.IpPort + " connected to server");
-    _LastClient = e.IpPort;
 };
-server.ClientDisconnected += (s, e) => 
+server.Events.ClientDisconnected += (s, e) => 
 { 
     Console.WriteLine("Client " + e.IpPort + " disconnected from server"); 
 }; 
@@ -77,12 +78,12 @@ TcpClient client = new TcpClient("127.0.0.1", 8000, false, null, null);
 client.Logger = Logger;
 
 // Set callbacks
-client.ClientConnected += (s, e) => 
+client.Events.ClientConnected += (s, e) => 
 { 
     Console.WriteLine("Connected to server"); 
 };
 
-client.ClientDisconnected += (s, e) => 
+client.Events.ClientDisconnected += (s, e) => 
 { 
     Console.WriteLine("Disconnected from server"); 
 };
@@ -138,6 +139,24 @@ It is important to understand what a timeout indicates and more important what i
   - A ```ReadResult``` with ```Status == ReadResultStatus.Timeout``` is returned, and the ```BytesRead``` property is set to 30,000
   - In this case, **there are still 20,000 bytes from the server waiting in the client's underlying ```NetworkStream``` or ```SslStream```**
   - As such, it is recommended that, upon timeout, you reset the connection (but this is your choice)
+
+## TCP Keepalives
+
+As of v1.3.0, support for TCP keepalives has been added to CavemanTcp, primarily to address the issue of a network interface being shut down, the cable unplugged, or the media otherwise becoming unavailable.  It is important to note that keepalives are supported in .NET Core and .NET Framework, but NOT .NET Standard.  As of this release, .NET Standard provides no facilities for TCP keepalives.
+
+TCP keepalives are enabled by default.
+```
+server.Keepalive.EnableTcpKeepAlives = true;
+server.Keepalive.TcpKeepAliveInterval = 5;      // seconds to wait before sending subsequent keepalive
+server.Keepalive.TcpKeepAliveTime = 5;          // seconds to wait before sending a keepalive
+server.Keepalive.TcpKeepAliveRetryCount = 5;    // number of failed keepalive probes before terminating connection
+```
+
+Some important notes about TCP keepalives:
+
+- Keepalives only work in .NET Core and .NET Framework
+- Keepalives can be enabled on either client or server, but generally only work on server (being investigated)
+- ```Keepalive.TcpKeepAliveRetryCount``` is only applicable to .NET Core; for .NET Framework, this value is forced to 10
 
 ## Help or Feedback
 

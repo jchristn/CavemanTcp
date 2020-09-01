@@ -7,7 +7,7 @@ namespace Test.ClientAsync
     class Program
     {
         static bool _RunForever = true;
-        static TcpClient _Client = null;
+        static CavemanTcpClient _Client = null;
 
         static void Main(string[] args)
         {
@@ -113,22 +113,22 @@ namespace Test.ClientAsync
 
                 if (userInput.Equals("stats"))
                 {
-                    Console.WriteLine(_Client.Stats);
+                    Console.WriteLine(_Client.Statistics);
                 }
             }
         }
 
         static void InitializeClient()
         {
-            _Client = new TcpClient("127.0.0.1", 8000, false, null, null);
+            _Client = new CavemanTcpClient("127.0.0.1", 8000, false, null, null);
             _Client.Logger = Logger;
 
-            _Client.ClientConnected += (s, e) =>
+            _Client.Events.ClientConnected += (s, e) =>
             {
                 Console.WriteLine("Connected to server");
             };
 
-            _Client.ClientDisconnected += (s, e) =>
+            _Client.Events.ClientDisconnected += (s, e) =>
             {
                 Console.WriteLine("Disconnected from server");
             };

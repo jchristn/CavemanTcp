@@ -9,7 +9,7 @@ namespace Test.Server
     class Program
     {
         static bool _RunForever = true;
-        static TcpServer _Server = null;
+        static CavemanTcpServer _Server = null;
         static string _LastClient = null;
 
         static void Main(string[] args)
@@ -153,23 +153,23 @@ namespace Test.Server
 
                 if (userInput.Equals("stats"))
                 {
-                    Console.WriteLine(_Server.Stats);
+                    Console.WriteLine(_Server.Statistics);
                 }
             }
         }
 
         static void InitializeServer()
         {
-            _Server = new TcpServer("127.0.0.1", 8000, false, null, null);
+            _Server = new CavemanTcpServer("127.0.0.1", 8000, false, null, null);
             _Server.Logger = Logger;
 
-            _Server.ClientConnected += (s, e) =>
+            _Server.Events.ClientConnected += (s, e) =>
             {
                 Console.WriteLine("Client " + e.IpPort + " connected to server");
                 _LastClient = e.IpPort;
             };
 
-            _Server.ClientDisconnected += (s, e) =>
+            _Server.Events.ClientDisconnected += (s, e) =>
             {
                 Console.WriteLine("Client " + e.IpPort + " disconnected from server");
             };
