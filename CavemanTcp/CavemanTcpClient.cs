@@ -188,6 +188,8 @@ namespace CavemanTcp
         { 
             if (timeoutSeconds < 1) throw new ArgumentException("TimeoutSeconds must be greater than zero seconds.");
 
+            if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
+
             IAsyncResult ar = _Client.BeginConnect(_ServerIp, _ServerPort, null, null);
             WaitHandle wh = ar.AsyncWaitHandle;
 
@@ -571,8 +573,6 @@ namespace CavemanTcp
             _SslStream = null;
             _SslCert = null;
             _SslCertCollection = null;
-
-            if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
 
             if (_Ssl)
             {
