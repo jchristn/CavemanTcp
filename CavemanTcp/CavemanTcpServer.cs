@@ -1098,14 +1098,16 @@ namespace CavemanTcp
 
         private void EnableKeepalives()
         {
+            try
+            {
 #if NETCOREAPP
 
-            _Listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-            _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, _Keepalive.TcpKeepAliveTime); 
-            _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, _Keepalive.TcpKeepAliveInterval);
-            _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, _Keepalive.TcpKeepAliveRetryCount);
+                _Listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, _Keepalive.TcpKeepAliveTime);
+                _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, _Keepalive.TcpKeepAliveInterval);
+                _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, _Keepalive.TcpKeepAliveRetryCount);
 
-#elif NETFRAMEWORK 
+#elif NETFRAMEWORK
 
             byte[] keepAlive = new byte[12];
 
@@ -1124,6 +1126,11 @@ namespace CavemanTcp
 #elif NETSTANDARD
 
 #endif
+            }
+            catch (Exception)
+            {
+                Logger?.Invoke(_Header + "keepalives not supported on this platform, disabled");
+            }
         }
 
         #endregion

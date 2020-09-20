@@ -124,7 +124,18 @@ rr = client server.ReadWithTimeoutAsync([ms], [count]);
 - ```DataStream``` - a ```MemoryStream``` containing the requested data.
 - ```Data``` - a ```byte[]``` representation of ```DataStream```.  Using this property will fully read ```DataStream``` to the end.
 
+### Local vs External Connections
+
+**IMPORTANT**
+* If you specify ```127.0.0.1``` as the listener IP address, it will only be able to accept connections from within the local host.  
+* To accept connections from other machines:
+  * Use a specific interface IP address, or
+  * Use ```null```, ```*```, ```+```, or ```0.0.0.0``` for the listener IP address (requires admin privileges to listen on any IP address)
+* Make sure you create a permit rule on your firewall to allow inbound connections on that port
+* If you use a port number under 1024, admin privileges will be required
+
 ## Operations with Timeouts
+
 When using any of the APIs that allow you to specify a timeout (i.e. ```SendWithTimeout```, ```SendWithTimeoutAsync```, ```ReadWithTimeout```, and ```ReadWithTimeoutAsync```), the resultant ```WriteResult``` and ```ReadResult``` as mentioned above will indicate if the operation timed out.  
 
 It is important to understand what a timeout indicates and more important what it doesn't.
