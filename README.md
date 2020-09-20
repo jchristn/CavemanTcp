@@ -107,6 +107,7 @@ rr = client server.ReadWithTimeoutAsync([ms], [count]);
 ```
 
 ## WriteResult and ReadResult
+
 ```WriteResult``` and ```ReadResult``` contains a ```Status``` property that indicates one of the following:
 
 - ```ClientNotFound``` - only applicable for server read and write operations
@@ -124,7 +125,7 @@ rr = client server.ReadWithTimeoutAsync([ms], [count]);
 - ```DataStream``` - a ```MemoryStream``` containing the requested data.
 - ```Data``` - a ```byte[]``` representation of ```DataStream```.  Using this property will fully read ```DataStream``` to the end.
 
-### Local vs External Connections
+## Local vs External Connections
 
 **IMPORTANT**
 * If you specify ```127.0.0.1``` as the listener IP address, it will only be able to accept connections from within the local host.  
