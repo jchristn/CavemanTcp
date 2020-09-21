@@ -836,13 +836,13 @@ namespace CavemanTcp
                     return result;
                 }
                 catch (Exception)
-                { 
+                {
                     _IsConnected = false;
+                    _Events.HandleClientDisconnected(this);
                     throw;
                 }
                 finally
                 {
-                    _Events.HandleClientDisconnected(this);
                     _ReadSemaphore.Release();
                 }
             });

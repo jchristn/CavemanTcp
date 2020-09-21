@@ -13,9 +13,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test.SslClient", "Test.SslC
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test.SslServer", "Test.SslServer\Test.SslServer.csproj", "{A44C2D24-AD79-45F2-8121-4B0DA10FC939}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.ClientAsync", "Test.ClientAsync\Test.ClientAsync.csproj", "{2F5406DC-EB8C-4043-B209-99604391DBD1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test.ClientAsync", "Test.ClientAsync\Test.ClientAsync.csproj", "{2F5406DC-EB8C-4043-B209-99604391DBD1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.ServerAsync", "Test.ServerAsync\Test.ServerAsync.csproj", "{0D4DACA2-77D0-4742-A733-FD90E3B9B175}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test.ServerAsync", "Test.ServerAsync\Test.ServerAsync.csproj", "{0D4DACA2-77D0-4742-A733-FD90E3B9B175}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.Disconnect", "Test.Disconnect\Test.Disconnect.csproj", "{D94B4C24-C9C7-4BA8-8430-8A49328AC68C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -51,6 +53,10 @@ Global
 		{0D4DACA2-77D0-4742-A733-FD90E3B9B175}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0D4DACA2-77D0-4742-A733-FD90E3B9B175}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0D4DACA2-77D0-4742-A733-FD90E3B9B175}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D94B4C24-C9C7-4BA8-8430-8A49328AC68C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D94B4C24-C9C7-4BA8-8430-8A49328AC68C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D94B4C24-C9C7-4BA8-8430-8A49328AC68C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D94B4C24-C9C7-4BA8-8430-8A49328AC68C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

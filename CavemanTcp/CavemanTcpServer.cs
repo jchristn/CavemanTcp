@@ -120,7 +120,7 @@ namespace CavemanTcp
          
         #endregion
 
-        #region Constructors-and-Factories
+        #region tructors-and-Factories
 
         /// <summary>
         /// Instantiates the TCP server.  Set the ClientConnected, ClientDisconnected, and DataReceived callbacks.  Once set, use Start() to begin listening for connections.
