@@ -223,6 +223,25 @@ namespace CavemanTcp
         }
 
         /// <summary>
+        /// Start accepting connections.
+        /// </summary>
+        /// <returns>Task.</returns>
+        public Task StartAsync()
+        {
+            if (_IsListening) throw new InvalidOperationException("CavemanTcpServer is already running.");
+
+            _Listener = new TcpListener(_IPAddress, _Port);
+
+            if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
+
+            _Listener.Start();
+            _TokenSource = new CancellationTokenSource();
+            _Token = _TokenSource.Token;
+            _Statistics = new CavemanTcpStatistics();
+            return AcceptConnections(); // sets _IsListening 
+        }
+
+        /// <summary>
         /// Stop accepting new connections.
         /// </summary>
         public void Stop()
@@ -650,7 +669,7 @@ namespace CavemanTcp
             } 
         }
 
-        private async void AcceptConnections()
+        private async Task AcceptConnections()
         {
             _IsListening = true;
 
