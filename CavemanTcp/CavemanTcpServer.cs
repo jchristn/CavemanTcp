@@ -73,7 +73,13 @@ namespace CavemanTcp
         /// <summary>
         /// CavemanTcp statistics.
         /// </summary>
-        public CavemanTcpStatistics Statistics = new CavemanTcpStatistics();
+        public CavemanTcpStatistics Statistics
+        {
+            get
+            {
+                return _Statistics;
+            }
+        }
 
         /// <summary>
         /// CavemanTcp keepalive settings.
@@ -90,7 +96,7 @@ namespace CavemanTcp
                 else _Keepalive = value;
             }
         }
-
+         
         #endregion
 
         #region Private-Members
@@ -98,6 +104,7 @@ namespace CavemanTcp
         private CavemanTcpServerSettings _Settings = new CavemanTcpServerSettings();
         private CavemanTcpServerEvents _Events = new CavemanTcpServerEvents();
         private CavemanTcpKeepaliveSettings _Keepalive = new CavemanTcpKeepaliveSettings();
+        private CavemanTcpStatistics _Statistics = new CavemanTcpStatistics();
 
         private string _Header = "[CavemanTcp.Server] ";
         private bool _IsListening = false;
@@ -196,24 +203,37 @@ namespace CavemanTcp
         }
 
         /// <summary>
-        /// Start the TCP server and begin accepting connections.
+        /// Start accepting connections.
         /// </summary>
         public void Start()
         {
-            if (_IsListening) throw new InvalidOperationException("TcpServer is already running.");
+            if (_IsListening) throw new InvalidOperationException("CavemanTcpServer is already running.");
 
             _Listener = new TcpListener(_IPAddress, _Port);
 
             if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
 
             _Listener.Start();
+            _TokenSource = new CancellationTokenSource();
+            _Token = _TokenSource.Token;
+            _Statistics = new CavemanTcpStatistics();
+            Task.Run(() => AcceptConnections(), _Token); // sets _IsListening
+             
+            Logger?.Invoke(_Header + "started");
+        }
 
-            _Clients = new Dictionary<string, ClientMetadata>();
+        /// <summary>
+        /// Stop accepting new connections.
+        /// </summary>
+        public void Stop()
+        {
+            if (!_IsListening) throw new InvalidOperationException("CavemanTcpServer is not running.");
 
-            Statistics = new CavemanTcpStatistics();
-            Task.Run(() => AcceptConnections(), _Token);
+            _IsListening = false;
+            _Listener.Stop();
+            _TokenSource.Cancel();
 
-            _IsListening = true;
+            Logger?.Invoke(_Header + "stopped");
         }
 
         /// <summary>
@@ -466,7 +486,7 @@ namespace CavemanTcp
                     _Clients.Remove(ipPort);
                 }
 
-                Logger?.Invoke(_Header + "Removed: " + ipPort); 
+                Logger?.Invoke(_Header + "removed: " + ipPort); 
             }
 
             _Events.HandleClientDisconnected(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Kicked));
@@ -567,12 +587,15 @@ namespace CavemanTcp
             {
                 try
                 {
-                    if (_Clients != null && _Clients.Count > 0)
+                    lock (_ClientsLock)
                     {
-                        foreach (KeyValuePair<string, ClientMetadata> curr in _Clients)
+                        if (_Clients != null && _Clients.Count > 0)
                         {
-                            curr.Value.Dispose();
-                            Logger?.Invoke(_Header + "Disconnected client: " + curr.Key);
+                            foreach (KeyValuePair<string, ClientMetadata> curr in _Clients)
+                            {
+                                curr.Value.Dispose();
+                                Logger?.Invoke(_Header + "disconnected client: " + curr.Key);
+                            } 
                         }
                     }
 
@@ -592,13 +615,15 @@ namespace CavemanTcp
                 }
                 catch (Exception e)
                 {
-                    Logger?.Invoke(_Header + "Dispose exception:" +
+                    Logger?.Invoke(_Header + "dispose exception:" +
                         Environment.NewLine +
                         e.ToString() +
                         Environment.NewLine);
                 }
 
                 _IsListening = false;
+
+                Logger?.Invoke(_Header + "disposed");
             }
         }
          
@@ -627,6 +652,8 @@ namespace CavemanTcp
 
         private async void AcceptConnections()
         {
+            _IsListening = true;
+
             while (!_Token.IsCancellationRequested)
             {
                 ClientMetadata client = null;
@@ -665,17 +692,17 @@ namespace CavemanTcp
 
                         if (_Settings.MonitorClientConnections)
                         {
-                            Logger?.Invoke(_Header + "Starting connection monitor for: " + clientIp);
+                            Logger?.Invoke(_Header + "starting connection monitor for: " + clientIp);
                             Task clientMonitorTask = Task.Run(() => ClientConnectionMonitor(client), client.Token);
                         }
 
                         _Events.HandleClientConnected(this, new ClientConnectedEventArgs(clientIp));
                     }, 
-                    client.Token);
-
+                    client.Token); 
                 }
                 catch (OperationCanceledException)
                 {
+                    _IsListening = false;
                     if (client != null) client.Dispose();
                     return;
                 }
@@ -687,7 +714,7 @@ namespace CavemanTcp
                 catch (Exception e)
                 {
                     if (client != null) client.Dispose();
-                    Logger?.Invoke(_Header + "Exception while awaiting connections: " + e.ToString());
+                    Logger?.Invoke(_Header + "exception while awaiting connections: " + e.ToString());
                     continue;
                 } 
             }
@@ -707,25 +734,25 @@ namespace CavemanTcp
 
                 if (!client.SslStream.IsEncrypted)
                 {
-                    Logger?.Invoke(_Header + "Client " + client.IpPort + " not encrypted, disconnecting"); 
+                    Logger?.Invoke(_Header + "client " + client.IpPort + " not encrypted, disconnecting"); 
                     return false;
                 }
 
                 if (!client.SslStream.IsAuthenticated)
                 {
-                    Logger?.Invoke(_Header + "Client " + client.IpPort + " not SSL/TLS authenticated, disconnecting"); 
+                    Logger?.Invoke(_Header + "client " + client.IpPort + " not SSL/TLS authenticated, disconnecting"); 
                     return false;
                 }
 
                 if (_Settings.MutuallyAuthenticate && !client.SslStream.IsMutuallyAuthenticated)
                 {
-                    Logger?.Invoke(_Header + "Client " + client.IpPort + " failed mutual authentication, disconnecting"); 
+                    Logger?.Invoke(_Header + "client " + client.IpPort + " failed mutual authentication, disconnecting"); 
                     return false;
                 }
             }
             catch (Exception e)
             {
-                Logger?.Invoke(_Header + "Client " + client.IpPort + " SSL/TLS exception: " + Environment.NewLine + e.ToString()); 
+                Logger?.Invoke(_Header + "client " + client.IpPort + " SSL/TLS exception: " + Environment.NewLine + e.ToString()); 
                 return false;
             }
 
@@ -748,7 +775,7 @@ namespace CavemanTcp
 
                 if (client == null || client.Client == null || !IsClientConnected(client.Client))
                 {
-                    Logger?.Invoke(_Header + "Client " + ipPort + " no longer connected");
+                    Logger?.Invoke(_Header + "client " + ipPort + " no longer connected");
                     DisconnectClient(ipPort);
                     break;
                 }
@@ -811,7 +838,8 @@ namespace CavemanTcp
                                 }
 
                                 result.BytesWritten += bytesRead;
-                                Statistics.SentBytes += bytesRead;
+
+                                _Statistics.AddSentBytes(bytesRead);
                                 bytesRemaining -= bytesRead;
                             }
                         }
@@ -902,7 +930,7 @@ namespace CavemanTcp
                                 }
 
                                 result.BytesWritten += bytesRead;
-                                Statistics.SentBytes += bytesRead;
+                                _Statistics.AddSentBytes(bytesRead);
                                 bytesRemaining -= bytesRead;
                             }
                         }
@@ -979,7 +1007,7 @@ namespace CavemanTcp
                             else ms.Write(buffer, 0, bytesRead);
 
                             result.BytesRead += bytesRead;
-                            Statistics.ReceivedBytes += bytesRead;
+                            _Statistics.AddReceivedBytes(bytesRead);
                             bytesRemaining -= bytesRead;
                         }
                     }
@@ -991,7 +1019,15 @@ namespace CavemanTcp
                 catch (Exception)
                 {
                     result.Status = ReadResultStatus.Disconnected;
+                    result.BytesRead = 0;
                     result.DataStream = null;
+
+                    client.Dispose();
+                    lock (_ClientsLock)
+                    {
+                        if (_Clients.ContainsKey(ipPort)) _Clients.Remove(ipPort);
+                    }
+
                     return result;
                 }
                 finally
@@ -1058,7 +1094,7 @@ namespace CavemanTcp
                             else await ms.WriteAsync(buffer, 0, bytesRead);
 
                             result.BytesRead += bytesRead;
-                            Statistics.ReceivedBytes += bytesRead;
+                            _Statistics.AddReceivedBytes(bytesRead);
                             bytesRemaining -= bytesRead;
                         }
                     }
@@ -1072,6 +1108,13 @@ namespace CavemanTcp
                     result.Status = ReadResultStatus.Disconnected;
                     result.BytesRead = 0;
                     result.DataStream = null;
+
+                    client.Dispose();
+                    lock (_ClientsLock)
+                    {
+                        if (_Clients.ContainsKey(ipPort)) _Clients.Remove(ipPort);
+                    }
+
                     return result;
                 }
                 finally

@@ -31,6 +31,8 @@ namespace Test.Server
                     Console.WriteLine("");
                     Console.WriteLine("   cls                          Clear the screen");
                     Console.WriteLine("   q                            Quit the program");
+                    Console.WriteLine("   start                        Start listening for connections (listening: " + (_Server != null ? _Server.IsListening.ToString() : "false") + ")");
+                    Console.WriteLine("   stop                         Stop listening for connections  (listening: " + (_Server != null ? _Server.IsListening.ToString() : "false") + ")");
                     Console.WriteLine("   list                         List connected clients");
                     Console.WriteLine("   send [ipport] [data]         Send data to a specific client");
                     Console.WriteLine("   sendt [ms] [ipport] [data]   Send data to a specific client with specified timeout");
@@ -38,7 +40,6 @@ namespace Test.Server
                     Console.WriteLine("   readt [ms] [ipport] [count]  Read [count] bytes from a specific client with specified timeout");
                     Console.WriteLine("   kick [ipport]                Disconnect a specific client from the server");
                     Console.WriteLine("   dispose                      Dispose of the server");
-                    Console.WriteLine("   start                        Start the server (running: " + (_Server != null ? _Server.IsListening.ToString() : "false") + ")");
                     Console.WriteLine("   stats                        Retrieve statistics");
                     Console.WriteLine("");
                     continue;
@@ -54,6 +55,16 @@ namespace Test.Server
                 {
                     _RunForever = false;
                     break;
+                }
+
+                if (userInput.Equals("start"))
+                { 
+                    _Server.Start();
+                }
+
+                if (userInput.Equals("stop"))
+                {
+                    _Server.Stop(); 
                 }
 
                 if (userInput.Equals("list"))
@@ -145,12 +156,6 @@ namespace Test.Server
                     _Server.Dispose(); 
                 }
 
-                if (userInput.Equals("start"))
-                {
-                    InitializeServer();
-                    _Server.Start();
-                }
-
                 if (userInput.Equals("stats"))
                 {
                     Console.WriteLine(_Server.Statistics);
@@ -162,6 +167,7 @@ namespace Test.Server
         {
             _Server = new CavemanTcpServer("127.0.0.1", 8000, false, null, null);
             _Server.Logger = Logger;
+            _Server.Settings.MonitorClientConnections = false;
 
             _Server.Events.ClientConnected += (s, e) =>
             {

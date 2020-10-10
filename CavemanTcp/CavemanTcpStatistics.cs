@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 
 namespace CavemanTcp
 {
@@ -109,6 +110,16 @@ namespace CavemanTcp
         {
             _ReceivedBytes = 0;
             _SentBytes = 0;
+        }
+         
+        internal void AddReceivedBytes(long bytes)
+        {
+            _ReceivedBytes = Interlocked.Add(ref _ReceivedBytes, bytes);
+        }
+
+        internal void AddSentBytes(long bytes)
+        {
+            _SentBytes = Interlocked.Add(ref _SentBytes, bytes);
         }
 
         #endregion

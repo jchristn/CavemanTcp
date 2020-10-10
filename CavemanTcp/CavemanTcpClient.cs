@@ -72,7 +72,13 @@ namespace CavemanTcp
         /// <summary>
         /// CavemanTcp statistics.
         /// </summary>
-        public CavemanTcpStatistics Statistics = new CavemanTcpStatistics();
+        public CavemanTcpStatistics Statistics
+        {
+            get
+            {
+                return _Statistics;
+            }
+        }
 
         /// <summary>
         /// CavemanTcp keepalive settings.
@@ -97,6 +103,7 @@ namespace CavemanTcp
         private CavemanTcpClientSettings _Settings = new CavemanTcpClientSettings();
         private CavemanTcpClientEvents _Events = new CavemanTcpClientEvents();
         private CavemanTcpKeepaliveSettings _Keepalive = new CavemanTcpKeepaliveSettings();
+        private CavemanTcpStatistics _Statistics = new CavemanTcpStatistics();
 
         private bool _IsConnected = false; 
         private string _Header = "[CavemanTcp.Client] ";
@@ -244,8 +251,8 @@ namespace CavemanTcp
                 wh.Close();
             }
 
-            Statistics = new CavemanTcpStatistics();
-            Logger?.Invoke("Starting connection monitor for: " + _ServerIp + ":" + _ServerPort);
+            _Statistics = new CavemanTcpStatistics();
+            Logger?.Invoke("starting connection monitor for: " + _ServerIp + ":" + _ServerPort);
             Task unawaited = Task.Run(() => ClientConnectionMonitor());
             
             _Events.HandleClientConnected(this);
@@ -630,7 +637,7 @@ namespace CavemanTcp
                  
                 if (!IsClientConnected())
                 {
-                    Logger?.Invoke(_Header + "Client no longer connected to server");
+                    Logger?.Invoke(_Header + "client no longer connected to server");
                     _Events.HandleClientDisconnected(this);
                     Dispose(true);
                     break;
@@ -682,7 +689,7 @@ namespace CavemanTcp
                                 }
 
                                 result.BytesWritten += bytesRead;
-                                Statistics.SentBytes += bytesRead;
+                                _Statistics.AddSentBytes(bytesRead);
                                 bytesRemaining -= bytesRead;
                             }
                         }
@@ -762,7 +769,7 @@ namespace CavemanTcp
                                 }
 
                                 result.BytesWritten += bytesRead;
-                                Statistics.SentBytes += bytesRead;
+                                _Statistics.AddSentBytes(bytesRead);
                                 bytesRemaining -= bytesRead;
                             }
                         }
@@ -826,7 +833,7 @@ namespace CavemanTcp
                             else ms.Write(buffer, 0, bytesRead);
 
                             result.BytesRead += bytesRead;
-                            Statistics.ReceivedBytes += bytesRead;
+                            _Statistics.AddReceivedBytes(bytesRead);
                             bytesRemaining -= bytesRead;
                         }
                     }
@@ -891,7 +898,7 @@ namespace CavemanTcp
                             else await ms.WriteAsync(buffer, 0, bytesRead);
 
                             result.BytesRead += bytesRead;
-                            Statistics.ReceivedBytes += bytesRead;
+                            _Statistics.AddReceivedBytes(bytesRead);
                             bytesRemaining -= bytesRead;
                         }
                     }
