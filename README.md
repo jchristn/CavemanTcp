@@ -28,7 +28,7 @@ As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; 
 ## Examples
 
 ### Server Example
-```
+```csharp
 using CavemanTcp;
 
 // Instantiate
@@ -70,7 +70,7 @@ server.DisconnectClient("[IP:Port]");
 ```
 
 ### Client Example
-```
+```csharp
 using CavemanTcp; 
 
 // Instantiate
@@ -157,7 +157,7 @@ It is important to understand what a timeout indicates and more important what i
 As of v1.3.0, support for TCP keepalives has been added to CavemanTcp, primarily to address the issue of a network interface being shut down, the cable unplugged, or the media otherwise becoming unavailable.  It is important to note that keepalives are supported in .NET Core and .NET Framework, but NOT .NET Standard.  As of this release, .NET Standard provides no facilities for TCP keepalives.
 
 TCP keepalives are enabled by default.
-```
+```csharp
 server.Keepalive.EnableTcpKeepAlives = true;
 server.Keepalive.TcpKeepAliveInterval = 5;      // seconds to wait before sending subsequent keepalive
 server.Keepalive.TcpKeepAliveTime = 5;          // seconds to wait before sending a keepalive
