@@ -212,11 +212,11 @@ namespace CavemanTcp
             _Listener = new TcpListener(_IPAddress, _Port);
 
             if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
-
-            _Listener.Start();
+             
             _TokenSource = new CancellationTokenSource();
             _Token = _TokenSource.Token;
             _Statistics = new CavemanTcpStatistics();
+
             Task.Run(() => AcceptConnections(), _Token); // sets _IsListening
              
             Logger?.Invoke(_Header + "started");
@@ -234,10 +234,10 @@ namespace CavemanTcp
 
             if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
 
-            _Listener.Start();
             _TokenSource = new CancellationTokenSource();
             _Token = _TokenSource.Token;
             _Statistics = new CavemanTcpStatistics();
+
             return AcceptConnections(); // sets _IsListening 
         }
 
@@ -261,8 +261,11 @@ namespace CavemanTcp
         /// <returns>IEnumerable of strings, each containing client IP:port.</returns>
         public IEnumerable<string> GetClients()
         {
-            List<string> clients = new List<string>(_Clients.Keys);
-            return clients;
+            lock (_ClientsLock)
+            {
+                List<string> clients = new List<string>(_Clients.Keys);
+                return clients;
+            }
         }
 
         /// <summary>
@@ -618,8 +621,14 @@ namespace CavemanTcp
                         }
                     }
 
-                    _TokenSource.Cancel();
-                    _TokenSource.Dispose();
+                    if (_TokenSource != null)
+                    {
+                        if (!_TokenSource.IsCancellationRequested)
+                        {
+                            _TokenSource.Cancel();
+                            _TokenSource.Dispose();
+                        }
+                    }
 
                     if (_Listener != null && _Listener.Server != null)
                     {
@@ -672,6 +681,7 @@ namespace CavemanTcp
         private async Task AcceptConnections()
         {
             _IsListening = true;
+            _Listener.Start();
 
             while (!_Token.IsCancellationRequested)
             {
