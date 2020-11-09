@@ -689,45 +689,15 @@ namespace CavemanTcp
 
                 try
                 {
-                    System.Net.Sockets.TcpClient tcpClient = await _Listener.AcceptTcpClientAsync(); 
-                    client = new ClientMetadata(tcpClient); 
-                    Task clientTask = Task.Run(async () =>
-                    {
-                        string clientIp = tcpClient.Client.RemoteEndPoint.ToString();
-
-                        if (_Ssl)
-                        {
-                            if (_Settings.AcceptInvalidCertificates)
-                            {
-                                client.SslStream = new SslStream(client.NetworkStream, false, new RemoteCertificateValidationCallback(AcceptCertificate));
-                            }
-                            else
-                            {
-                                client.SslStream = new SslStream(client.NetworkStream, false);
-                            }
-
-                            bool success = await StartTls(client);
-                            if (!success)
-                            {
-                                client.Dispose();
-                                return;
-                            }
-                        }
-
-                        lock (_Clients)
-                        {
-                            _Clients.Add(clientIp, client);
-                        }
-
-                        if (_Settings.MonitorClientConnections)
-                        {
-                            Logger?.Invoke(_Header + "starting connection monitor for: " + clientIp);
-                            Task clientMonitorTask = Task.Run(() => ClientConnectionMonitor(client), client.Token);
-                        }
-
-                        _Events.HandleClientConnected(this, new ClientConnectedEventArgs(clientIp));
-                    }, 
-                    client.Token); 
+                    TcpClient tcpClient = await _Listener.AcceptTcpClientAsync(); 
+                    client = new ClientMetadata(tcpClient);
+                    await Task.Run(() => HandleClientConnection(client), client.Token); 
+                }
+                catch (TaskCanceledException)
+                {
+                    _IsListening = false;
+                    if (client != null) client.Dispose();
+                    return;
                 }
                 catch (OperationCanceledException)
                 {
@@ -749,6 +719,49 @@ namespace CavemanTcp
             }
 
             _IsListening = false;
+        }
+
+        private async Task HandleClientConnection(ClientMetadata client)
+        {
+            if (String.IsNullOrEmpty(client.IpPort))
+            { 
+                Logger?.Invoke(_Header + "received empty IP:port for client");
+                client.Dispose();
+                return;
+            }
+
+            if (_Ssl)
+            {
+                if (_Settings.AcceptInvalidCertificates)
+                {
+                    client.SslStream = new SslStream(client.NetworkStream, false, new RemoteCertificateValidationCallback(AcceptCertificate));
+                }
+                else
+                {
+                    client.SslStream = new SslStream(client.NetworkStream, false);
+                }
+
+                bool success = await StartTls(client);
+                if (!success)
+                {
+                    client.Dispose();
+                    return;
+                }
+            }
+
+            lock (_Clients)
+            {
+                Logger?.Invoke(_Header + "adding client " + client.IpPort);
+                _Clients.Add(client.IpPort, client);
+            }
+
+            if (_Settings.MonitorClientConnections)
+            {
+                Logger?.Invoke(_Header + "starting connection monitor for: " + client.IpPort);
+                Task clientMonitorTask = Task.Run(() => ClientConnectionMonitor(client), client.Token);
+            }
+
+            _Events.HandleClientConnected(this, new ClientConnectedEventArgs(client.IpPort)); 
         }
 
         private async Task<bool> StartTls(ClientMetadata client)
@@ -790,7 +803,6 @@ namespace CavemanTcp
 
         private bool AcceptCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
-            // return true; // Allow untrusted certificates.
             return _Settings.AcceptInvalidCertificates;
         }
           
@@ -1172,7 +1184,7 @@ namespace CavemanTcp
         {
             try
             {
-#if NETCOREAPP
+#if (NETCOREAPP3_0 || NETCOREAPP3_1)
 
                 _Listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
                 _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, _Keepalive.TcpKeepAliveTime);
@@ -1181,18 +1193,10 @@ namespace CavemanTcp
 
 #elif NETFRAMEWORK
 
-            byte[] keepAlive = new byte[12];
-
-            // Turn keepalive on
+                byte[] keepAlive = new byte[12];
             Buffer.BlockCopy(BitConverter.GetBytes((uint)1), 0, keepAlive, 0, 4);
-
-            // Set TCP keepalive time
             Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveTime), 0, keepAlive, 4, 4); 
-
-            // Set TCP keepalive interval
             Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveInterval), 0, keepAlive, 8, 4); 
-
-            // Set keepalive settings on the underlying Socket
             _Listener.Server.IOControl(IOControlCode.KeepAliveValues, keepAlive, null);
 
 #elif NETSTANDARD

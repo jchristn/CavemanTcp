@@ -68,6 +68,7 @@ namespace CavemanTcp
             _TcpClient = tcp;
             _NetworkStream = tcp.GetStream();
             _IpPort = tcp.Client.RemoteEndPoint.ToString();
+
             TokenSource = new CancellationTokenSource();
             Token = TokenSource.Token;
         }

@@ -1,0 +1,783 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>CavemanTcp</name>
+    </assembly>
+    <members>
+        <member name="T:CavemanTcp.CavemanTcpClient">
+            <summary>
+            CavemanTcp is a simple TCP client and server providing callers with easy integration and full control over network reads and writes.
+            Once instantiated, use Connect(int) to connect to the server.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpClient.IsConnected">
+            <summary>
+            Indicates if the client is connected to the server.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpClient.Logger">
+            <summary>
+            Method to invoke when sending log messages.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpClient.Settings">
+            <summary>
+            CavemanTcp client settings.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpClient.Events">
+            <summary>
+            CavemanTcp client events.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpClient.Statistics">
+            <summary>
+            CavemanTcp statistics.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpClient.Keepalive">
+            <summary>
+            CavemanTcp keepalive settings.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.#ctor(System.String,System.Boolean,System.String,System.String)">
+            <summary>
+            Instantiates the TCP client.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
+            </summary>
+            <param name="ipPort">The IP:port of the server.</param> 
+            <param name="ssl">Enable or disable SSL.</param>
+            <param name="pfxCertFilename">The filename of the PFX certificate file.</param>
+            <param name="pfxPassword">The password to the PFX certificate file.</param>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.#ctor(System.String,System.Int32,System.Boolean,System.String,System.String)">
+            <summary>
+            Instantiates the TCP client.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
+            </summary>
+            <param name="serverIpOrHostname">The server IP address or hostname.</param>
+            <param name="port">The TCP port on which to connect.</param>
+            <param name="ssl">Enable or disable SSL.</param>
+            <param name="pfxCertFilename">The filename of the PFX certificate file.</param>
+            <param name="pfxPassword">The password to the PFX certificate file.</param>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.Dispose">
+            <summary>
+            Dispose of the TCP client.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.Connect(System.Int32)">
+            <summary>
+            Establish the connection to the server.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.Send(System.String)">
+            <summary>
+            Send data to the server.
+            </summary>
+            <param name="data">String data.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.Send(System.Byte[])">
+            <summary>
+            Send data to the server.
+            </summary> 
+            <param name="data">Byte array containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.Send(System.Int64,System.IO.Stream)">
+            <summary>
+            Send data to the server.
+            </summary> 
+            <param name="contentLength">Number of bytes to send from the stream.</param>
+            <param name="stream">Stream containing data.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeout(System.Int32,System.String)">
+            <summary>
+            Send data to the server.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="data">String data.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeout(System.Int32,System.Byte[])">
+            <summary>
+            Send data to the server.
+            </summary> 
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="data">Byte array containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeout(System.Int32,System.Int64,System.IO.Stream)">
+            <summary>
+            Send data to the server.
+            </summary> 
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="contentLength">Number of bytes to send from the stream.</param>
+            <param name="stream">Stream containing data.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.SendAsync(System.String)">
+            <summary>
+            Send data to the server.
+            </summary>
+            <param name="data">String data.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.SendAsync(System.Byte[])">
+            <summary>
+            Send data to the server.
+            </summary> 
+            <param name="data">Byte array containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.SendAsync(System.Int64,System.IO.Stream)">
+            <summary>
+            Send data to the server.
+            </summary> 
+            <param name="contentLength">Number of bytes to send from the stream.</param>
+            <param name="stream">Stream containing data.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeoutAsync(System.Int32,System.String)">
+            <summary>
+            Send data to the server.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="data">String data.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeoutAsync(System.Int32,System.Byte[])">
+            <summary>
+            Send data to the server.
+            </summary> 
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="data">Byte array containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeoutAsync(System.Int32,System.Int64,System.IO.Stream)">
+            <summary>
+            Send data to the server.
+            </summary> 
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="contentLength">Number of bytes to send from the stream.</param>
+            <param name="stream">Stream containing data.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.Read(System.Int32)">
+            <summary>
+            Read string from the server.
+            </summary>
+            <param name="count">The number of bytes to read.</param>
+            <returns>ReadResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.ReadWithTimeout(System.Int32,System.Int32)">
+            <summary>
+            Read string from the server.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="count">The number of bytes to read.</param>
+            <returns>ReadResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.ReadAsync(System.Int32)">
+            <summary>
+            Read string from the server.
+            </summary>
+            <param name="count">The number of bytes to read.</param>
+            <returns>ReadResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.ReadWithTimeoutAsync(System.Int32,System.Int32)">
+            <summary>
+            Read string from the server.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="count">The number of bytes to read.</param>
+            <returns>ReadResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.GetStream">
+            <summary>
+            Get direct access to the underlying client stream.
+            </summary>
+            <returns>Stream.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.Dispose(System.Boolean)">
+            <summary>
+            Dispose of the TCP client.
+            </summary>
+            <param name="disposing">Dispose of resources.</param>
+        </member>
+        <member name="T:CavemanTcp.CavemanTcpClientEvents">
+            <summary>
+            CavemanTcp client events.
+            </summary>
+        </member>
+        <member name="E:CavemanTcp.CavemanTcpClientEvents.ClientConnected">
+            <summary>
+            Event to fire when the client connects.
+            </summary>
+        </member>
+        <member name="E:CavemanTcp.CavemanTcpClientEvents.ClientDisconnected">
+            <summary>
+            Event to fire when the client disconnects.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClientEvents.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="T:CavemanTcp.CavemanTcpClientSettings">
+            <summary>
+            CavemanTcp client settings.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpClientSettings.StreamBufferSize">
+            <summary>
+            Buffer size to use while interacting with streams.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpClientSettings.AcceptInvalidCertificates">
+            <summary>
+            Enable or disable acceptance of invalid SSL certificates.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpClientSettings.MutuallyAuthenticate">
+            <summary>
+            Enable or disable mutual authentication of SSL client and server.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpClientSettings.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="T:CavemanTcp.CavemanTcpKeepaliveSettings">
+            <summary>
+            CavemanTcp keepalive settings.
+            Keepalive probes are sent after an idle period defined by TcpKeepAliveTime (seconds).
+            Should a keepalive response not be received within TcpKeepAliveInterval (seconds), a subsequent keepalive probe will be sent.
+            For .NET Framework, should 10 keepalive probes fail, the connection will terminate.
+            For .NET Core, should a number of probes fail as specified in TcpKeepAliveRetryCount, the connection will terminate.
+            TCP keepalives are not supported in .NET Standard.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpKeepaliveSettings.EnableTcpKeepAlives">
+            <summary>
+            Enable or disable TCP-based keepalive probes.
+            TCP keepalives are only supported in .NET Core and .NET Framework projects.  .NET Standard does not provide facilities to support TCP keepalives.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpKeepaliveSettings.TcpKeepAliveInterval">
+            <summary>
+            TCP keepalive interval, i.e. the number of seconds a TCP connection will wait for a keepalive response before sending another keepalive probe.
+            Default is 5 seconds.  Value must be greater than zero.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpKeepaliveSettings.TcpKeepAliveTime">
+            <summary>
+            TCP keepalive time, i.e. the number of seconds a TCP connection will remain alive/idle before keepalive probes are sent to the remote. 
+            Default is 5 seconds.  Value must be greater than zero.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpKeepaliveSettings.TcpKeepAliveRetryCount">
+            <summary>
+            TCP keepalive retry count, i.e. the number of times a TCP probe will be sent in effort to verify the connection.
+            After the specified number of probes fail, the connection will be terminated.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpKeepaliveSettings.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="T:CavemanTcp.CavemanTcpServer">
+            <summary>
+            CavemanTcp is a simple TCP client and server providing callers with easy integration and full control over network reads and writes.
+            Set the ClientConnected and ClientDisconnected callbacks, then, use Start() to begin listening for connections.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpServer.IsListening">
+            <summary>
+            Indicates if the server is listening for connections.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpServer.Logger">
+            <summary>
+            Method to invoke when sending log messages.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpServer.Settings">
+            <summary>
+            CavemanTcp server settings.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpServer.Events">
+            <summary>
+            CavemanTcp server events.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpServer.Statistics">
+            <summary>
+            CavemanTcp statistics.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpServer.Keepalive">
+            <summary>
+            CavemanTcp keepalive settings.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.#ctor(System.String,System.Int32,System.Boolean,System.String,System.String)">
+            <summary>
+            Instantiates the TCP server.  Set the ClientConnected, ClientDisconnected, and DataReceived callbacks.  Once set, use Start() to begin listening for connections.
+            </summary>
+            <param name="listenerIp">The listener IP address or hostname.</param>
+            <param name="port">The TCP port on which to listen.</param>
+            <param name="ssl">Enable or disable SSL.</param>
+            <param name="pfxCertFilename">The filename of the PFX certificate file.</param>
+            <param name="pfxPassword">The password to the PFX certificate file.</param>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.Dispose">
+            <summary>
+            Dispose of the TCP server.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.Start">
+            <summary>
+            Start accepting connections.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.StartAsync">
+            <summary>
+            Start accepting connections.
+            </summary>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.Stop">
+            <summary>
+            Stop accepting new connections.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.GetClients">
+            <summary>
+            Retrieve a list of client IP:port connected to the server.
+            </summary>
+            <returns>IEnumerable of strings, each containing client IP:port.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.IsConnected(System.String)">
+            <summary>
+            Determines if a client is connected by its IP:port.
+            </summary>
+            <param name="ipPort">The client IP:port string.</param>
+            <returns>True if connected.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.Send(System.String,System.String)">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="data">String containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.Send(System.String,System.Byte[])">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="data">Byte array containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.Send(System.String,System.Int64,System.IO.Stream)">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="contentLength">Number of bytes to send from the stream.</param>
+            <param name="stream">Stream containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeout(System.Int32,System.String,System.String)">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="data">String containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeout(System.Int32,System.String,System.Byte[])">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="data">Byte array containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeout(System.Int32,System.String,System.Int64,System.IO.Stream)">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="contentLength">Number of bytes to send from the stream.</param>
+            <param name="stream">Stream containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.SendAsync(System.String,System.String)">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="data">String containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.SendAsync(System.String,System.Byte[])">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="data">Byte array containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.SendAsync(System.String,System.Int64,System.IO.Stream)">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="contentLength">Number of bytes to send from the stream.</param>
+            <param name="stream">Stream containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeoutAsync(System.Int32,System.String,System.String)">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="data">String containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeoutAsync(System.Int32,System.String,System.Byte[])">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="data">Byte array containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeoutAsync(System.Int32,System.String,System.Int64,System.IO.Stream)">
+            <summary>
+            Send data to the specified client by IP:port.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="contentLength">Number of bytes to send from the stream.</param>
+            <param name="stream">Stream containing data to send.</param>
+            <returns>WriteResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.DisconnectClient(System.String)">
+            <summary>
+            Disconnects the specified client.
+            </summary>
+            <param name="ipPort">IP:port of the client.</param>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.Read(System.String,System.Int32)">
+            <summary>
+            Read data from a given client.
+            </summary>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="count">The number of bytes to read.</param>
+            <returns>ReadResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.ReadWithTimeout(System.Int32,System.String,System.Int32)">
+            <summary>
+            Read data from a given client.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="count">The number of bytes to read.</param>
+            <returns>ReadResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.ReadAsync(System.String,System.Int32)">
+            <summary>
+            Read data from a given client.
+            </summary>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="count">The number of bytes to read.</param>
+            <returns>ReadResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.ReadWithTimeoutAsync(System.Int32,System.String,System.Int32)">
+            <summary>
+            Read data from a given client.
+            </summary>
+            <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+            <param name="ipPort">The client IP:port string.</param>
+            <param name="count">The number of bytes to read.</param>
+            <returns>ReadResult.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.GetStream(System.String)">
+            <summary>
+            Get direct access to the underlying client stream.
+            </summary>
+            <param name="ipPort">The client IP:port string.</param>
+            <returns>Stream.</returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.Dispose(System.Boolean)">
+            <summary>
+            Dispose of the TCP server.
+            </summary>
+            <param name="disposing">Dispose of resources.</param>
+        </member>
+        <member name="T:CavemanTcp.CavemanTcpServerEvents">
+            <summary>
+            CavemanTcp server events.
+            </summary>
+        </member>
+        <member name="E:CavemanTcp.CavemanTcpServerEvents.ClientConnected">
+            <summary>
+            Event to fire when a client connects.  A string containing the client IP:port will be passed.
+            </summary>
+        </member>
+        <member name="E:CavemanTcp.CavemanTcpServerEvents.ClientDisconnected">
+            <summary>
+            Event to fire when a client disconnects.  A string containing the client IP:port will be passed.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServerEvents.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="T:CavemanTcp.CavemanTcpServerSettings">
+            <summary>
+            CavemanTcp server settings.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpServerSettings.StreamBufferSize">
+            <summary>
+            Buffer size to use while interacting with streams.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpServerSettings.MonitorClientConnections">
+            <summary>
+            Enable client connection monitoring, which checks connectivity every second.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpServerSettings.AcceptInvalidCertificates">
+            <summary>
+            Enable or disable acceptance of invalid SSL certificates.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpServerSettings.MutuallyAuthenticate">
+            <summary>
+            Enable or disable mutual authentication of SSL client and server.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServerSettings.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="T:CavemanTcp.CavemanTcpStatistics">
+            <summary>
+            CavemanTcp statistics.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpStatistics.StartTime">
+            <summary>
+            The time at which the client or server was started.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpStatistics.UpTime">
+            <summary>
+            The amount of time which the client or server has been up.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpStatistics.ReceivedBytes">
+            <summary>
+            The number of bytes received.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpStatistics.SentBytes">
+            <summary>
+            The number of bytes sent.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpStatistics.#ctor">
+            <summary>
+            Initialize the statistics object.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpStatistics.ToString">
+            <summary>
+            Return human-readable version of the object.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpStatistics.Reset">
+            <summary>
+            Reset statistics other than StartTime and UpTime.
+            </summary>
+        </member>
+        <member name="T:CavemanTcp.ClientConnectedEventArgs">
+            <summary>
+            Arguments for client connection events.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.ClientConnectedEventArgs.IpPort">
+            <summary>
+            The IP address and port number of the connected client socket.
+            </summary>
+        </member>
+        <member name="T:CavemanTcp.ClientDisconnectedEventArgs">
+            <summary>
+            Arguments for client disconnection events.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.ClientDisconnectedEventArgs.IpPort">
+            <summary>
+            The IP address and port number of the disconnected client socket.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.ClientDisconnectedEventArgs.Reason">
+            <summary>
+            The reason for the disconnection.
+            </summary>
+        </member>
+        <member name="T:CavemanTcp.DisconnectReason">
+            <summary>
+            Reason why a client disconnected.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.DisconnectReason.Normal">
+            <summary>
+            Normal disconnection.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.DisconnectReason.Kicked">
+            <summary>
+            Client connection was intentionally terminated programmatically or by the server.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.DisconnectReason.Timeout">
+            <summary>
+            Client connection timed out; server did not receive data within the timeout window.
+            </summary>
+        </member>
+        <member name="T:CavemanTcp.ReadResult">
+            <summary>
+            Result of a read operation.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.ReadResult.Status">
+            <summary>
+            Status of the read operation.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.ReadResult.BytesRead">
+            <summary>
+            Number of bytes read.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.ReadResult.DataStream">
+            <summary>
+            Stream containing data.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.ReadResult.Data">
+            <summary>
+            Byte data from the stream.  Using this property will fully read the data stream and it will no longer be readable.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.ReadResult.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.ReadResult.#ctor(CavemanTcp.ReadResultStatus,System.Int64,System.IO.MemoryStream)">
+            <summary>
+            Instantiate the object.
+            </summary>
+            <param name="status">Status of the read operation.</param>
+            <param name="bytesRead">Number of bytes read.</param>
+            <param name="data">Stream containing data.</param>
+        </member>
+        <member name="T:CavemanTcp.ReadResultStatus">
+            <summary>
+            Read result status.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.ReadResultStatus.ClientNotFound">
+            <summary>
+            The requested client was not found (only applicable for server read requests).
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.ReadResultStatus.Success">
+            <summary>
+            The read operation was successful.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.ReadResultStatus.Timeout">
+            <summary>
+            The operation timed out (reserved for future use).
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.ReadResultStatus.Disconnected">
+            <summary>
+            The connection was lost. 
+            </summary>
+        </member>
+        <member name="T:CavemanTcp.WriteResult">
+            <summary>
+            Result of a write operation.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.WriteResult.Status">
+            <summary>
+            Status of the write operation.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.WriteResult.BytesWritten">
+            <summary>
+            Number of bytes written.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.WriteResult.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.WriteResult.#ctor(CavemanTcp.WriteResultStatus,System.Int64)">
+            <summary>
+            Instantiate the object.
+            </summary>
+            <param name="status">Status of the write operation.</param>
+            <param name="bytesWritten">Number of bytes written.</param>
+        </member>
+        <member name="T:CavemanTcp.WriteResultStatus">
+            <summary>
+            Write result status.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.WriteResultStatus.ClientNotFound">
+            <summary>
+            The requested client was not found (only applicable for server read requests).
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.WriteResultStatus.Success">
+            <summary>
+            The write operation was successful.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.WriteResultStatus.Timeout">
+            <summary>
+            The operation timed out (reserved for future use).
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.WriteResultStatus.Disconnected">
+            <summary>
+            The connection was lost. 
+            </summary>
+        </member>
+    </members>
+</doc>
