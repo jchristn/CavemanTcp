@@ -17,7 +17,7 @@ namespace Test.Server
             InitializeServer();
             _Server.Start();
 
-            Console.WriteLine("Listening on tcp://127.0.0.1:8000");
+            Console.WriteLine("Listening on tcp://*:8000");
 
             while (_RunForever)
             {
@@ -165,9 +165,10 @@ namespace Test.Server
 
         static void InitializeServer()
         {
-            _Server = new CavemanTcpServer("127.0.0.1", 8000, false, null, null);
+            // _Server = new CavemanTcpServer("*", 8000, false, null, null);
+            _Server = new CavemanTcpServer("0.0.0.0:8000");
             _Server.Logger = Logger;
-            _Server.Settings.MonitorClientConnections = false;
+            _Server.Settings.MonitorClientConnections = true;
 
             _Server.Events.ClientConnected += (s, e) =>
             {

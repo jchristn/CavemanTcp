@@ -85,7 +85,7 @@ namespace Test.Disconnect
             Console.WriteLine("[Server] starting TCP/9000");
 
             _Server = new CavemanTcpServer("127.0.0.01", 9000, false, null, null);
-            _Server.Events.ClientConnected += (s, e) =>
+            _Server.Events.ClientConnected += (s, e) => 
             {
                 _LastIpPort = e.IpPort;
                 Console.WriteLine("[Server] " + e.IpPort + " connected");

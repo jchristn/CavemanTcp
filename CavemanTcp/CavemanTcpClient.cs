@@ -123,9 +123,57 @@ namespace CavemanTcp
         private SemaphoreSlim _WriteSemaphore = new SemaphoreSlim(1, 1);
         private SemaphoreSlim _ReadSemaphore = new SemaphoreSlim(1, 1);
 
+        private CancellationTokenSource _TokenSource = new CancellationTokenSource();
+        private CancellationToken _Token;
+        private Task _ConnectionMonitor = null;
+
         #endregion
 
         #region Constructors-and-Factories
+
+        /// <summary>
+        /// Instantiates the TCP client without SSL.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
+        /// </summary>
+        /// <param name="ipPort">The IP:port of the server.</param> 
+        public CavemanTcpClient(string ipPort)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+
+            Common.ParseIpPort(ipPort, out _ServerIp, out _ServerPort);
+            if (_ServerPort < 0) throw new ArgumentException("Port must be zero or greater.");
+            if (String.IsNullOrEmpty(_ServerIp)) throw new ArgumentNullException("Server IP or hostname must not be null.");
+
+            if (!IPAddress.TryParse(_ServerIp, out _IPAddress))
+            {
+                _IPAddress = Dns.GetHostEntry(_ServerIp).AddressList[0];
+                _ServerIp = _IPAddress.ToString();
+            }
+
+            InitializeClient();
+        }
+
+        /// <summary>
+        /// Instantiates the TCP client without SSL.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
+        /// </summary>
+        /// <param name="serverIpOrHostname">The server IP address or hostname.</param>
+        /// <param name="port">The TCP port on which to connect.</param>
+        public CavemanTcpClient(string serverIpOrHostname, int port)
+        {
+            if (String.IsNullOrEmpty(serverIpOrHostname)) throw new ArgumentNullException(nameof(serverIpOrHostname));
+            if (port < 0) throw new ArgumentException("Port must be zero or greater.");
+
+            _ServerIp = serverIpOrHostname;
+
+            if (!IPAddress.TryParse(_ServerIp, out _IPAddress))
+            {
+                _IPAddress = Dns.GetHostEntry(serverIpOrHostname).AddressList[0];
+                _ServerIp = _IPAddress.ToString();
+            }
+
+            _ServerPort = port;
+
+            InitializeClient();
+        }
 
         /// <summary>
         /// Instantiates the TCP client.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
@@ -145,9 +193,14 @@ namespace CavemanTcp
             if (!IPAddress.TryParse(_ServerIp, out _IPAddress))
             {
                 _IPAddress = Dns.GetHostEntry(_ServerIp).AddressList[0];
+                _ServerIp = _IPAddress.ToString();
             }
 
-            InitializeClient(ssl, pfxCertFilename, pfxPassword); 
+            _Ssl = ssl;
+            _PfxCertFilename = pfxCertFilename;
+            _PfxPassword = pfxPassword;
+
+            InitializeClient();
         }
 
         /// <summary>
@@ -168,11 +221,16 @@ namespace CavemanTcp
             if (!IPAddress.TryParse(_ServerIp, out _IPAddress))
             {
                 _IPAddress = Dns.GetHostEntry(serverIpOrHostname).AddressList[0];
+                _ServerIp = _IPAddress.ToString();
             }
 
             _ServerPort = port;
 
-            InitializeClient(ssl, pfxCertFilename, pfxPassword); 
+            _Ssl = ssl;
+            _PfxCertFilename = pfxCertFilename;
+            _PfxPassword = pfxPassword;
+
+            InitializeClient(); 
         }
 
         #endregion
@@ -192,9 +250,10 @@ namespace CavemanTcp
         /// Establish the connection to the server.
         /// </summary>
         public void Connect(int timeoutSeconds)
-        { 
-            if (timeoutSeconds < 1) throw new ArgumentException("TimeoutSeconds must be greater than zero seconds.");
-
+        {  
+            if (timeoutSeconds < 1) throw new ArgumentException("Timeout must be greater than zero seconds."); 
+            if (IsConnected) return; 
+            InitializeClient(); 
             if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
 
             IAsyncResult ar = _Client.BeginConnect(_ServerIp, _ServerPort, null, null);
@@ -252,12 +311,20 @@ namespace CavemanTcp
             }
 
             _Statistics = new CavemanTcpStatistics();
-            Logger?.Invoke("starting connection monitor for: " + _ServerIp + ":" + _ServerPort);
-            Task unawaited = Task.Run(() => ClientConnectionMonitor());
-            
-            _Events.HandleClientConnected(this);
-            
+            _TokenSource = new CancellationTokenSource();
+            _Token = _TokenSource.Token; 
+            _ConnectionMonitor = Task.Run(() => ClientConnectionMonitor(), _Token); 
+            _Events.HandleClientConnected(this); 
             _IsConnected = true;
+        }
+
+        /// <summary>
+        /// Disconnect from the server.
+        /// </summary>
+        public void Disconnect()
+        {
+            if (!IsConnected) return;
+            Dispose(true);
         }
 
         /// <summary>
@@ -273,7 +340,7 @@ namespace CavemanTcp
             byte[] bytes = Encoding.UTF8.GetBytes(data);
             ms.Write(bytes, 0, bytes.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return SendInternal(-1, bytes.Length, ms);
+            return SendWithoutTimeoutInternal(bytes.Length, ms);
         }
 
         /// <summary>
@@ -288,7 +355,7 @@ namespace CavemanTcp
             MemoryStream ms = new MemoryStream(); 
             ms.Write(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return SendInternal(-1, data.Length, ms); 
+            return SendWithoutTimeoutInternal(data.Length, ms); 
         }
 
         /// <summary>
@@ -303,7 +370,7 @@ namespace CavemanTcp
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            return SendInternal(-1, contentLength, stream);
+            return SendWithoutTimeoutInternal(contentLength, stream);
         }
 
         /// <summary>
@@ -321,7 +388,7 @@ namespace CavemanTcp
             byte[] bytes = Encoding.UTF8.GetBytes(data);
             ms.Write(bytes, 0, bytes.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return SendInternal(timeoutMs, bytes.Length, ms);
+            return SendWithTimeoutInternal(timeoutMs, bytes.Length, ms);
         }
 
         /// <summary>
@@ -338,7 +405,7 @@ namespace CavemanTcp
             MemoryStream ms = new MemoryStream();
             ms.Write(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return SendInternal(timeoutMs, data.Length, ms);
+            return SendWithTimeoutInternal(timeoutMs, data.Length, ms);
         }
 
         /// <summary>
@@ -355,7 +422,7 @@ namespace CavemanTcp
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            return SendInternal(timeoutMs, contentLength, stream);
+            return SendWithTimeoutInternal(timeoutMs, contentLength, stream);
         }
 
         /// <summary>
@@ -371,7 +438,7 @@ namespace CavemanTcp
             byte[] bytes = Encoding.UTF8.GetBytes(data);
             await ms.WriteAsync(bytes, 0, bytes.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendInternalAsync(-1, bytes.Length, ms);
+            return await SendWithoutTimeoutInternalAsync(bytes.Length, ms);
         }
 
         /// <summary>
@@ -386,7 +453,7 @@ namespace CavemanTcp
             MemoryStream ms = new MemoryStream();
             await ms.WriteAsync(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendInternalAsync(-1, data.Length, ms);
+            return await SendWithoutTimeoutInternalAsync(data.Length, ms);
         }
 
         /// <summary>
@@ -401,7 +468,7 @@ namespace CavemanTcp
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            return await SendInternalAsync(-1, contentLength, stream);
+            return await SendWithoutTimeoutInternalAsync(contentLength, stream);
         }
 
         /// <summary>
@@ -419,7 +486,7 @@ namespace CavemanTcp
             byte[] bytes = Encoding.UTF8.GetBytes(data);
             await ms.WriteAsync(bytes, 0, bytes.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendInternalAsync(timeoutMs, bytes.Length, ms);
+            return await SendWithTimeoutInternalAsync(timeoutMs, bytes.Length, ms);
         }
 
         /// <summary>
@@ -436,7 +503,7 @@ namespace CavemanTcp
             MemoryStream ms = new MemoryStream();
             await ms.WriteAsync(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendInternalAsync(timeoutMs, data.Length, ms);
+            return await SendWithTimeoutInternalAsync(timeoutMs, data.Length, ms);
         }
 
         /// <summary>
@@ -453,7 +520,7 @@ namespace CavemanTcp
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            return await SendInternalAsync(timeoutMs, contentLength, stream);
+            return await SendWithTimeoutInternalAsync(timeoutMs, contentLength, stream);
         }
 
         /// <summary>
@@ -544,6 +611,11 @@ namespace CavemanTcp
                     _WriteSemaphore.Wait();
                     _ReadSemaphore.Wait();
 
+                    if (_TokenSource != null && !_Token.IsCancellationRequested)
+                    {
+                        _TokenSource.Cancel();
+                    }
+
                     if (_SslStream != null)
                     {
                         _SslStream.Close(); 
@@ -571,11 +643,14 @@ namespace CavemanTcp
             }
         }
 
-        private void InitializeClient(bool ssl, string pfxCertFilename, string pfxPassword)
+        private void InitializeClient()
         {
-            _Ssl = ssl;
-            _PfxCertFilename = pfxCertFilename;
-            _PfxPassword = pfxPassword;
+            if (_Client != null)
+            {
+                _Client.Close();
+                _IsConnected = false;
+            }
+
             _Client = new System.Net.Sockets.TcpClient();
             _SslStream = null;
             _SslCert = null;
@@ -583,13 +658,13 @@ namespace CavemanTcp
 
             if (_Ssl)
             {
-                if (String.IsNullOrEmpty(pfxPassword))
+                if (String.IsNullOrEmpty(_PfxPassword))
                 {
-                    _SslCert = new X509Certificate2(pfxCertFilename);
+                    _SslCert = new X509Certificate2(_PfxCertFilename);
                 }
                 else
                 {
-                    _SslCert = new X509Certificate2(pfxCertFilename, pfxPassword);
+                    _SslCert = new X509Certificate2(_PfxCertFilename, _PfxPassword);
                 }
 
                 _SslCertCollection = new X509Certificate2Collection
@@ -631,26 +706,95 @@ namespace CavemanTcp
 
         private void ClientConnectionMonitor()
         {
-            while (true)
+            try
             {
-                Task.Delay(1000).Wait();
-                 
-                if (!IsClientConnected())
+                while (!_TokenSource.IsCancellationRequested)
                 {
-                    Logger?.Invoke(_Header + "client no longer connected to server");
-                    _Events.HandleClientDisconnected(this);
-                    Dispose(true);
-                    break;
+                    Task.Delay(1000).Wait();
+
+                    if (!IsClientConnected())
+                    {
+                        break;
+                    }
                 }
+            }
+            catch (SocketException)
+            { 
+            }
+            catch (TaskCanceledException)
+            { 
+            }
+            catch (OperationCanceledException)
+            { 
+            }
+            catch (Exception e)
+            {
+                Logger?.Invoke(_Header + "connection monitor exception:" + Environment.NewLine + e.ToString());
+            }
+            finally
+            {
+                Logger?.Invoke(_Header + "disconnected");
+                _Events.HandleClientDisconnected(this);
+                Dispose(true); 
             }
         }
 
-        private WriteResult SendInternal(int timeoutMs, long contentLength, Stream stream)
+        private WriteResult SendWithoutTimeoutInternal(long contentLength, Stream stream)
+        {
+            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
+             
+            try
+            {
+                _WriteSemaphore.Wait(1);
+
+                if (contentLength > 0 && stream != null && stream.CanRead)
+                {
+                    long bytesRemaining = contentLength;
+
+                    while (bytesRemaining > 0)
+                    {
+                        byte[] buffer = new byte[_Settings.StreamBufferSize];
+                        int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                        if (bytesRead > 0)
+                        {
+                            if (!_Ssl)
+                            {
+                                _NetworkStream.Write(buffer, 0, bytesRead);
+                                _NetworkStream.Flush();
+                            }
+                            else
+                            {
+                                _SslStream.Write(buffer, 0, bytesRead);
+                                _SslStream.Flush();
+                            }
+
+                            result.BytesWritten += bytesRead;
+                            _Statistics.AddSentBytes(bytesRead);
+                            bytesRemaining -= bytesRead;
+                        }
+                    }
+                }
+
+                return result;
+            }
+            catch (Exception)
+            {
+                result.Status = WriteResultStatus.Disconnected;
+                _IsConnected = false;
+                return result;
+            }
+            finally
+            {
+                _WriteSemaphore.Release();
+            } 
+        }
+
+        private WriteResult SendWithTimeoutInternal(int timeoutMs, long contentLength, Stream stream)
         {
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
 
             Task<WriteResult> task = Task.Run(() =>
-            { 
+            {
                 try
                 {
                     _WriteSemaphore.Wait(1);
@@ -665,26 +809,14 @@ namespace CavemanTcp
                             int bytesRead = stream.Read(buffer, 0, buffer.Length);
                             if (bytesRead > 0)
                             {
-                                byte[] data = null;
-                                if (bytesRead == buffer.Length)
-                                {
-                                    data = new byte[buffer.Length];
-                                    Buffer.BlockCopy(buffer, 0, data, 0, buffer.Length);
-                                }
-                                else
-                                {
-                                    data = new byte[bytesRead];
-                                    Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
-                                }
-
                                 if (!_Ssl)
                                 {
-                                    _NetworkStream.Write(data, 0, data.Length);
+                                    _NetworkStream.Write(buffer, 0, bytesRead);
                                     _NetworkStream.Flush();
                                 }
                                 else
                                 {
-                                    _SslStream.Write(data, 0, data.Length);
+                                    _SslStream.Write(buffer, 0, bytesRead);
                                     _SslStream.Flush();
                                 }
 
@@ -722,7 +854,60 @@ namespace CavemanTcp
             }
         }
 
-        private async Task<WriteResult> SendInternalAsync(int timeoutMs, long contentLength, Stream stream)
+        private async Task<WriteResult> SendWithoutTimeoutInternalAsync(long contentLength, Stream stream)
+        {
+            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
+
+            CancellationTokenSource tokenSource = new CancellationTokenSource();
+            CancellationToken token = tokenSource.Token;
+             
+            try
+            {
+                await _WriteSemaphore.WaitAsync(1);
+
+                if (contentLength > 0 && stream != null && stream.CanRead)
+                {
+                    long bytesRemaining = contentLength;
+
+                    while (bytesRemaining > 0)
+                    {
+                        byte[] buffer = new byte[_Settings.StreamBufferSize];
+                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                        if (bytesRead > 0)
+                        {
+                            if (!_Ssl)
+                            {
+                                _NetworkStream.Write(buffer, 0, bytesRead);
+                                await _NetworkStream.FlushAsync();
+                            }
+                            else
+                            {
+                                _SslStream.Write(buffer, 0, bytesRead);
+                                await _SslStream.FlushAsync();
+                            }
+
+                            result.BytesWritten += bytesRead;
+                            _Statistics.AddSentBytes(bytesRead);
+                            bytesRemaining -= bytesRead;
+                        }
+                    }
+                }
+
+                return result;
+            }
+            catch (Exception)
+            {
+                result.Status = WriteResultStatus.Disconnected;
+                _IsConnected = false;
+                return result;
+            }
+            finally
+            {
+                _WriteSemaphore.Release();
+            } 
+        }
+
+        private async Task<WriteResult> SendWithTimeoutInternalAsync(int timeoutMs, long contentLength, Stream stream)
         {
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
 
@@ -745,26 +930,14 @@ namespace CavemanTcp
                             int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
                             if (bytesRead > 0)
                             {
-                                byte[] data = null;
-                                if (bytesRead == buffer.Length)
-                                {
-                                    data = new byte[buffer.Length];
-                                    Buffer.BlockCopy(buffer, 0, data, 0, buffer.Length);
-                                }
-                                else
-                                {
-                                    data = new byte[bytesRead];
-                                    Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
-                                }
-
                                 if (!_Ssl)
                                 {
-                                    _NetworkStream.Write(data, 0, data.Length);
+                                    _NetworkStream.Write(buffer, 0, bytesRead);
                                     await _NetworkStream.FlushAsync();
                                 }
                                 else
                                 {
-                                    _SslStream.Write(data, 0, data.Length);
+                                    _SslStream.Write(buffer, 0, bytesRead);
                                     await _SslStream.FlushAsync();
                                 }
 
@@ -829,9 +1002,7 @@ namespace CavemanTcp
 
                         if (bytesRead > 0)
                         {
-                            if (bytesRead == buffer.Length) ms.Write(buffer, 0, buffer.Length);
-                            else ms.Write(buffer, 0, bytesRead);
-
+                            ms.Write(buffer, 0, bytesRead);
                             result.BytesRead += bytesRead;
                             _Statistics.AddReceivedBytes(bytesRead);
                             bytesRemaining -= bytesRead;
@@ -894,9 +1065,7 @@ namespace CavemanTcp
 
                         if (bytesRead > 0)
                         {
-                            if (bytesRead == buffer.Length) await ms.WriteAsync(buffer, 0, buffer.Length);
-                            else await ms.WriteAsync(buffer, 0, bytesRead);
-
+                            await ms.WriteAsync(buffer, 0, bytesRead);
                             result.BytesRead += bytesRead;
                             _Statistics.AddReceivedBytes(bytesRead);
                             bytesRemaining -= bytesRead;

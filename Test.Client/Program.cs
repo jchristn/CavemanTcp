@@ -33,6 +33,8 @@ namespace Test.Client
                     Console.WriteLine("   readt [ms] [count]   Read [count] bytes from the server with specified timeout");
                     Console.WriteLine("   dispose              Dispose of the client");
                     Console.WriteLine("   start                Start the client (connected: " + (_Client != null ? _Client.IsConnected.ToString() : "false") + ")");
+                    Console.WriteLine("   connect              Connect to the server");
+                    Console.WriteLine("   disconnect           Disconnect from the server");
                     Console.WriteLine("   stats                Retrieve statistics");
                     Console.WriteLine("");
                     continue;
@@ -111,6 +113,16 @@ namespace Test.Client
                     _Client.Connect(10);
                 }
 
+                if (userInput.Equals("connect"))
+                {
+                    _Client.Connect(10);
+                }
+
+                if (userInput.Equals("disconnect"))
+                {
+                    _Client.Disconnect();
+                }
+
                 if (userInput.Equals("stats"))
                 {
                     Console.WriteLine(_Client.Statistics);
@@ -120,7 +132,8 @@ namespace Test.Client
          
         static void InitializeClient()
         {
-            _Client = new CavemanTcpClient("127.0.0.1", 8000, false, null, null);
+            // _Client = new CavemanTcpClient("127.0.0.1", 8000, false, null, null);
+            _Client = new CavemanTcpClient("127.0.0.1:8000");
             _Client.Logger = Logger;
 
             _Client.Events.ClientConnected += (s, e) =>

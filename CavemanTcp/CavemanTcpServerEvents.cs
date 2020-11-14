@@ -44,7 +44,7 @@ namespace CavemanTcp
         #endregion
 
         #region Internal-Methods
-
+         
         internal void HandleClientConnected(object sender, ClientConnectedEventArgs args)
         {
             ClientConnected?.Invoke(sender, args);
@@ -54,7 +54,7 @@ namespace CavemanTcp
         {
             ClientDisconnected?.Invoke(sender, args);
         }
-         
+
         #endregion
 
         #region Private-Methods
