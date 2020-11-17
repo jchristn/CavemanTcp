@@ -2,10 +2,11 @@
 
 ## Current Version
 
-v1.3.1
+v1.3.2
 
 - .NET 5.0 support
-
+- Better async handling and cancellation
+ 
 ## Previous Versions
 
 v1.3.0

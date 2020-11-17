@@ -134,51 +134,57 @@
             <param name="stream">Stream containing data.</param>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpClient.SendAsync(System.String)">
+        <member name="M:CavemanTcp.CavemanTcpClient.SendAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Send data to the server.
             </summary>
             <param name="data">String data.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpClient.SendAsync(System.Byte[])">
+        <member name="M:CavemanTcp.CavemanTcpClient.SendAsync(System.Byte[],System.Threading.CancellationToken)">
             <summary>
             Send data to the server.
             </summary> 
             <param name="data">Byte array containing data to send.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpClient.SendAsync(System.Int64,System.IO.Stream)">
+        <member name="M:CavemanTcp.CavemanTcpClient.SendAsync(System.Int64,System.IO.Stream,System.Threading.CancellationToken)">
             <summary>
             Send data to the server.
             </summary> 
             <param name="contentLength">Number of bytes to send from the stream.</param>
             <param name="stream">Stream containing data.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeoutAsync(System.Int32,System.String)">
+        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeoutAsync(System.Int32,System.String,System.Threading.CancellationToken)">
             <summary>
             Send data to the server.
             </summary>
             <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
             <param name="data">String data.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeoutAsync(System.Int32,System.Byte[])">
+        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeoutAsync(System.Int32,System.Byte[],System.Threading.CancellationToken)">
             <summary>
             Send data to the server.
             </summary> 
             <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
             <param name="data">Byte array containing data to send.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeoutAsync(System.Int32,System.Int64,System.IO.Stream)">
+        <member name="M:CavemanTcp.CavemanTcpClient.SendWithTimeoutAsync(System.Int32,System.Int64,System.IO.Stream,System.Threading.CancellationToken)">
             <summary>
             Send data to the server.
             </summary> 
             <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
             <param name="contentLength">Number of bytes to send from the stream.</param>
             <param name="stream">Stream containing data.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>WriteResult.</returns>
         </member>
         <member name="M:CavemanTcp.CavemanTcpClient.Read(System.Int32)">
@@ -196,19 +202,21 @@
             <param name="count">The number of bytes to read.</param>
             <returns>ReadResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpClient.ReadAsync(System.Int32)">
+        <member name="M:CavemanTcp.CavemanTcpClient.ReadAsync(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Read string from the server.
             </summary>
             <param name="count">The number of bytes to read.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>ReadResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpClient.ReadWithTimeoutAsync(System.Int32,System.Int32)">
+        <member name="M:CavemanTcp.CavemanTcpClient.ReadWithTimeoutAsync(System.Int32,System.Int32,System.Threading.CancellationToken)">
             <summary>
             Read string from the server.
             </summary>
             <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
             <param name="count">The number of bytes to read.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>ReadResult.</returns>
         </member>
         <member name="M:CavemanTcp.CavemanTcpClient.GetStream">
@@ -385,10 +393,11 @@
             Start accepting connections.
             </summary>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpServer.StartAsync">
+        <member name="M:CavemanTcp.CavemanTcpServer.StartAsync(System.Threading.CancellationToken)">
             <summary>
             Start accepting connections.
             </summary>
+            <param name="token">Cancellation token for canceling the server.</param>
             <returns>Task.</returns>
         </member>
         <member name="M:CavemanTcp.CavemanTcpServer.Stop">
@@ -462,50 +471,55 @@
             <param name="stream">Stream containing data to send.</param>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpServer.SendAsync(System.String,System.String)">
+        <member name="M:CavemanTcp.CavemanTcpServer.SendAsync(System.String,System.String,System.Threading.CancellationToken)">
             <summary>
             Send data to the specified client by IP:port.
             </summary>
             <param name="ipPort">The client IP:port string.</param>
             <param name="data">String containing data to send.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpServer.SendAsync(System.String,System.Byte[])">
+        <member name="M:CavemanTcp.CavemanTcpServer.SendAsync(System.String,System.Byte[],System.Threading.CancellationToken)">
             <summary>
             Send data to the specified client by IP:port.
             </summary>
             <param name="ipPort">The client IP:port string.</param>
             <param name="data">Byte array containing data to send.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpServer.SendAsync(System.String,System.Int64,System.IO.Stream)">
+        <member name="M:CavemanTcp.CavemanTcpServer.SendAsync(System.String,System.Int64,System.IO.Stream,System.Threading.CancellationToken)">
             <summary>
             Send data to the specified client by IP:port.
             </summary>
             <param name="ipPort">The client IP:port string.</param>
             <param name="contentLength">Number of bytes to send from the stream.</param>
             <param name="stream">Stream containing data to send.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeoutAsync(System.Int32,System.String,System.String)">
+        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeoutAsync(System.Int32,System.String,System.String,System.Threading.CancellationToken)">
             <summary>
             Send data to the specified client by IP:port.
             </summary>
             <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
             <param name="ipPort">The client IP:port string.</param>
             <param name="data">String containing data to send.</param>
+            <param name="token">Cancellation token for canceling the request.</param>>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeoutAsync(System.Int32,System.String,System.Byte[])">
+        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeoutAsync(System.Int32,System.String,System.Byte[],System.Threading.CancellationToken)">
             <summary>
             Send data to the specified client by IP:port.
             </summary>
             <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
             <param name="ipPort">The client IP:port string.</param>
             <param name="data">Byte array containing data to send.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>WriteResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeoutAsync(System.Int32,System.String,System.Int64,System.IO.Stream)">
+        <member name="M:CavemanTcp.CavemanTcpServer.SendWithTimeoutAsync(System.Int32,System.String,System.Int64,System.IO.Stream,System.Threading.CancellationToken)">
             <summary>
             Send data to the specified client by IP:port.
             </summary>
@@ -513,6 +527,7 @@
             <param name="ipPort">The client IP:port string.</param>
             <param name="contentLength">Number of bytes to send from the stream.</param>
             <param name="stream">Stream containing data to send.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>WriteResult.</returns>
         </member>
         <member name="M:CavemanTcp.CavemanTcpServer.DisconnectClient(System.String)">
@@ -538,21 +553,23 @@
             <param name="count">The number of bytes to read.</param>
             <returns>ReadResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpServer.ReadAsync(System.String,System.Int32)">
+        <member name="M:CavemanTcp.CavemanTcpServer.ReadAsync(System.String,System.Int32,System.Threading.CancellationToken)">
             <summary>
             Read data from a given client.
             </summary>
             <param name="ipPort">The client IP:port string.</param>
             <param name="count">The number of bytes to read.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>ReadResult.</returns>
         </member>
-        <member name="M:CavemanTcp.CavemanTcpServer.ReadWithTimeoutAsync(System.Int32,System.String,System.Int32)">
+        <member name="M:CavemanTcp.CavemanTcpServer.ReadWithTimeoutAsync(System.Int32,System.String,System.Int32,System.Threading.CancellationToken)">
             <summary>
             Read data from a given client.
             </summary>
             <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
             <param name="ipPort">The client IP:port string.</param>
             <param name="count">The number of bytes to read.</param>
+            <param name="token">Cancellation token for canceling the request.</param>
             <returns>ReadResult.</returns>
         </member>
         <member name="M:CavemanTcp.CavemanTcpServer.GetStream(System.String)">
@@ -767,6 +784,11 @@
             The connection was lost. 
             </summary>
         </member>
+        <member name="F:CavemanTcp.ReadResultStatus.Canceled">
+            <summary>
+            The request was canceled.
+            </summary>
+        </member>
         <member name="T:CavemanTcp.WriteResult">
             <summary>
             Result of a write operation.
@@ -817,6 +839,11 @@
         <member name="F:CavemanTcp.WriteResultStatus.Disconnected">
             <summary>
             The connection was lost. 
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.WriteResultStatus.Canceled">
+            <summary>
+            The request was canceled.
             </summary>
         </member>
     </members>

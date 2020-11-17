@@ -93,6 +93,10 @@ namespace CavemanTcp
         /// <summary>
         /// The connection was lost. 
         /// </summary>
-        Disconnected
+        Disconnected,
+        /// <summary>
+        /// The request was canceled.
+        /// </summary>
+        Canceled
     }
 }

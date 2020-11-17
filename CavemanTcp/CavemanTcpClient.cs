@@ -313,7 +313,7 @@ namespace CavemanTcp
             _Statistics = new CavemanTcpStatistics();
             _TokenSource = new CancellationTokenSource();
             _Token = _TokenSource.Token; 
-            _ConnectionMonitor = Task.Run(() => ClientConnectionMonitor(), _Token); 
+            _ConnectionMonitor = Task.Run(() => ConnectionMonitor(), _Token); 
             _Events.HandleClientConnected(this); 
             _IsConnected = true;
         }
@@ -429,31 +429,35 @@ namespace CavemanTcp
         /// Send data to the server.
         /// </summary>
         /// <param name="data">String data.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>WriteResult.</returns>
-        public async Task<WriteResult> SendAsync(string data)
+        public async Task<WriteResult> SendAsync(string data, CancellationToken token = default)
         {
             if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
             if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
+            if (token == default(CancellationToken)) token = _Token;
             MemoryStream ms = new MemoryStream();
             byte[] bytes = Encoding.UTF8.GetBytes(data);
-            await ms.WriteAsync(bytes, 0, bytes.Length);
+            await ms.WriteAsync(bytes, 0, bytes.Length, token).ConfigureAwait(false);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithoutTimeoutInternalAsync(bytes.Length, ms);
+            return await SendWithoutTimeoutInternalAsync(bytes.Length, ms, token).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Send data to the server.
         /// </summary> 
         /// <param name="data">Byte array containing data to send.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>WriteResult.</returns>
-        public async Task<WriteResult> SendAsync(byte[] data)
+        public async Task<WriteResult> SendAsync(byte[] data, CancellationToken token = default)
         {
             if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
             if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            if (token == default(CancellationToken)) token = _Token;
             MemoryStream ms = new MemoryStream();
-            await ms.WriteAsync(data, 0, data.Length);
+            await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithoutTimeoutInternalAsync(data.Length, ms);
+            return await SendWithoutTimeoutInternalAsync(data.Length, ms, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -461,14 +465,16 @@ namespace CavemanTcp
         /// </summary> 
         /// <param name="contentLength">Number of bytes to send from the stream.</param>
         /// <param name="stream">Stream containing data.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>WriteResult.</returns>
-        public async Task<WriteResult> SendAsync(long contentLength, Stream stream)
+        public async Task<WriteResult> SendAsync(long contentLength, Stream stream, CancellationToken token = default)
         {
             if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            return await SendWithoutTimeoutInternalAsync(contentLength, stream);
+            if (token == default(CancellationToken)) token = _Token;
+            return await SendWithoutTimeoutInternalAsync(contentLength, stream, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -476,17 +482,19 @@ namespace CavemanTcp
         /// </summary>
         /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
         /// <param name="data">String data.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>WriteResult.</returns>
-        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, string data)
+        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, string data, CancellationToken token = default)
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
             if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
+            if (token == default(CancellationToken)) token = _Token;
             MemoryStream ms = new MemoryStream();
             byte[] bytes = Encoding.UTF8.GetBytes(data);
-            await ms.WriteAsync(bytes, 0, bytes.Length);
+            await ms.WriteAsync(bytes, 0, bytes.Length, token).ConfigureAwait(false);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithTimeoutInternalAsync(timeoutMs, bytes.Length, ms);
+            return await SendWithTimeoutInternalAsync(timeoutMs, bytes.Length, ms, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -494,16 +502,18 @@ namespace CavemanTcp
         /// </summary> 
         /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
         /// <param name="data">Byte array containing data to send.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>WriteResult.</returns>
-        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, byte[] data)
+        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, byte[] data, CancellationToken token = default)
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
             if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            if (token == default(CancellationToken)) token = _Token;
             MemoryStream ms = new MemoryStream();
-            await ms.WriteAsync(data, 0, data.Length);
+            await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithTimeoutInternalAsync(timeoutMs, data.Length, ms);
+            return await SendWithTimeoutInternalAsync(timeoutMs, data.Length, ms, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -512,15 +522,17 @@ namespace CavemanTcp
         /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
         /// <param name="contentLength">Number of bytes to send from the stream.</param>
         /// <param name="stream">Stream containing data.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>WriteResult.</returns>
-        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, long contentLength, Stream stream)
+        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, long contentLength, Stream stream, CancellationToken token = default)
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
+            if (token == default(CancellationToken)) token = _Token;
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            return await SendWithTimeoutInternalAsync(timeoutMs, contentLength, stream);
+            return await SendWithTimeoutInternalAsync(timeoutMs, contentLength, stream, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -534,7 +546,7 @@ namespace CavemanTcp
             if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
             if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
             if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream."); 
-            return ReadInternal(-1, count); 
+            return ReadWithTimeoutInternal(-1, count); 
         }
 
         /// <summary>
@@ -550,21 +562,23 @@ namespace CavemanTcp
             if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
             if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
             if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
-            return ReadInternal(timeoutMs, count);
+            return ReadWithTimeoutInternal(timeoutMs, count);
         }
 
         /// <summary>
         /// Read string from the server.
         /// </summary>
         /// <param name="count">The number of bytes to read.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>ReadResult.</returns>
-        public async Task<ReadResult> ReadAsync(int count)
+        public async Task<ReadResult> ReadAsync(int count, CancellationToken token = default)
         {
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
             if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
             if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
-            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream."); 
-            return await ReadInternalAsync(-1, count);
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
+            if (token == default(CancellationToken)) token = _Token;
+            return await ReadWithoutTimeoutInternalAsync(count, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -572,15 +586,17 @@ namespace CavemanTcp
         /// </summary>
         /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
         /// <param name="count">The number of bytes to read.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>ReadResult.</returns>
-        public async Task<ReadResult> ReadWithTimeoutAsync(int timeoutMs, int count)
+        public async Task<ReadResult> ReadWithTimeoutAsync(int timeoutMs, int count, CancellationToken token = default)
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
             if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
             if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
             if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
-            return await ReadInternalAsync(timeoutMs, count);
+            if (token == default(CancellationToken)) token = _Token;
+            return await ReadWithTimeoutInternalAsync(timeoutMs, count, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -643,6 +659,37 @@ namespace CavemanTcp
             }
         }
 
+        private void EnableKeepalives()
+        {
+            try
+            {
+#if (NETCOREAPP3_0 || NETCOREAPP3_1 || NET5_0)
+
+                _Client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                _Client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, _Keepalive.TcpKeepAliveTime);
+                _Client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, _Keepalive.TcpKeepAliveInterval);
+                _Client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, _Keepalive.TcpKeepAliveRetryCount);
+
+#elif NETFRAMEWORK
+
+                byte[] keepAlive = new byte[12]; 
+                Buffer.BlockCopy(BitConverter.GetBytes((uint)1), 0, keepAlive, 0, 4);
+                Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveTime), 0, keepAlive, 4, 4);
+                Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveInterval), 0, keepAlive, 8, 4);
+                _Client.Client.IOControl(IOControlCode.KeepAliveValues, keepAlive, null);
+
+#elif NETSTANDARD
+
+#endif
+            }
+            catch (Exception)
+            {
+                Logger?.Invoke(_Header + "keepalives not supported on this platform, disabled");
+            }
+        }
+
+        #region Connection
+
         private void InitializeClient()
         {
             if (_Client != null)
@@ -704,13 +751,13 @@ namespace CavemanTcp
             return _Settings.AcceptInvalidCertificates;
         }
 
-        private void ClientConnectionMonitor()
+        private async Task ConnectionMonitor()
         {
             try
             {
                 while (!_TokenSource.IsCancellationRequested)
                 {
-                    Task.Delay(1000).Wait();
+                    await Task.Delay(1000).ConfigureAwait(false);
 
                     if (!IsClientConnected())
                     {
@@ -739,13 +786,20 @@ namespace CavemanTcp
             }
         }
 
+        #endregion
+
+        #region Send
+
         private WriteResult SendWithoutTimeoutInternal(long contentLength, Stream stream)
         {
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
              
             try
             {
-                _WriteSemaphore.Wait(1);
+                while (!_WriteSemaphore.Wait(10))
+                {
+                    Task.Delay(10).Wait();
+                }
 
                 if (contentLength > 0 && stream != null && stream.CanRead)
                 {
@@ -777,6 +831,16 @@ namespace CavemanTcp
 
                 return result;
             }
+            catch (TaskCanceledException)
+            {
+                result.Status = WriteResultStatus.Canceled;
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                result.Status = WriteResultStatus.Canceled;
+                return result;
+            }
             catch (Exception)
             {
                 result.Status = WriteResultStatus.Disconnected;
@@ -797,7 +861,10 @@ namespace CavemanTcp
             {
                 try
                 {
-                    _WriteSemaphore.Wait(1);
+                    while (!_WriteSemaphore.Wait(10))
+                    {
+                        Task.Delay(10).Wait();
+                    }
 
                     if (contentLength > 0 && stream != null && stream.CanRead)
                     {
@@ -829,6 +896,16 @@ namespace CavemanTcp
 
                     return result;
                 }
+                catch (TaskCanceledException)
+                {
+                    result.Status = WriteResultStatus.Canceled;
+                    return result;
+                }
+                catch (OperationCanceledException)
+                {
+                    result.Status = WriteResultStatus.Canceled;
+                    return result;
+                }
                 catch (Exception)
                 {
                     result.Status = WriteResultStatus.Disconnected;
@@ -839,7 +916,7 @@ namespace CavemanTcp
                 {
                     _WriteSemaphore.Release();
                 }
-            });
+            }, _Token);
 
             bool success = task.Wait(TimeSpan.FromMilliseconds(timeoutMs));
 
@@ -854,16 +931,18 @@ namespace CavemanTcp
             }
         }
 
-        private async Task<WriteResult> SendWithoutTimeoutInternalAsync(long contentLength, Stream stream)
+        private async Task<WriteResult> SendWithoutTimeoutInternalAsync(long contentLength, Stream stream, CancellationToken token)
         {
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
-
-            CancellationTokenSource tokenSource = new CancellationTokenSource();
-            CancellationToken token = tokenSource.Token;
              
             try
             {
-                await _WriteSemaphore.WaitAsync(1);
+                while (true)
+                {
+                    bool success = await _WriteSemaphore.WaitAsync(10).ConfigureAwait(false);
+                    if (success) break;
+                    await Task.Delay(10).ConfigureAwait(false);
+                }
 
                 if (contentLength > 0 && stream != null && stream.CanRead)
                 {
@@ -872,18 +951,18 @@ namespace CavemanTcp
                     while (bytesRemaining > 0)
                     {
                         byte[] buffer = new byte[_Settings.StreamBufferSize];
-                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
                         if (bytesRead > 0)
                         {
                             if (!_Ssl)
                             {
-                                _NetworkStream.Write(buffer, 0, bytesRead);
-                                await _NetworkStream.FlushAsync();
+                                await _NetworkStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
+                                await _NetworkStream.FlushAsync(token).ConfigureAwait(false);
                             }
                             else
                             {
-                                _SslStream.Write(buffer, 0, bytesRead);
-                                await _SslStream.FlushAsync();
+                                await _SslStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
+                                await _SslStream.FlushAsync(token).ConfigureAwait(false);
                             }
 
                             result.BytesWritten += bytesRead;
@@ -893,6 +972,16 @@ namespace CavemanTcp
                     }
                 }
 
+                return result;
+            }
+            catch (TaskCanceledException)
+            {
+                result.Status = WriteResultStatus.Canceled;
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                result.Status = WriteResultStatus.Canceled;
                 return result;
             }
             catch (Exception)
@@ -907,18 +996,23 @@ namespace CavemanTcp
             } 
         }
 
-        private async Task<WriteResult> SendWithTimeoutInternalAsync(int timeoutMs, long contentLength, Stream stream)
+        private async Task<WriteResult> SendWithTimeoutInternalAsync(int timeoutMs, long contentLength, Stream stream, CancellationToken token)
         {
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
 
-            CancellationTokenSource tokenSource = new CancellationTokenSource();
-            CancellationToken token = tokenSource.Token;
+            CancellationTokenSource timeoutCts = new CancellationTokenSource();
+            CancellationToken timeoutToken = timeoutCts.Token;
 
             Task<WriteResult> task = Task.Run(async () =>
             {
                 try
                 {
-                    await _WriteSemaphore.WaitAsync(1);
+                    while (true)
+                    {
+                        bool success = await _WriteSemaphore.WaitAsync(10, token).ConfigureAwait(false);
+                        if (success) break;
+                        await Task.Delay(10, token).ConfigureAwait(false);
+                    }
 
                     if (contentLength > 0 && stream != null && stream.CanRead)
                     {
@@ -927,18 +1021,18 @@ namespace CavemanTcp
                         while (bytesRemaining > 0)
                         {
                             byte[] buffer = new byte[_Settings.StreamBufferSize];
-                            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
                             if (bytesRead > 0)
                             {
                                 if (!_Ssl)
                                 {
-                                    _NetworkStream.Write(buffer, 0, bytesRead);
-                                    await _NetworkStream.FlushAsync();
+                                    await _NetworkStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
+                                    await _NetworkStream.FlushAsync(token).ConfigureAwait(false);
                                 }
                                 else
                                 {
-                                    _SslStream.Write(buffer, 0, bytesRead);
-                                    await _SslStream.FlushAsync();
+                                    await _SslStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
+                                    await _SslStream.FlushAsync(token).ConfigureAwait(false);
                                 }
 
                                 result.BytesWritten += bytesRead;
@@ -948,6 +1042,16 @@ namespace CavemanTcp
                         }
                     }
 
+                    return result;
+                }
+                catch (TaskCanceledException)
+                {
+                    result.Status = WriteResultStatus.Canceled;
+                    return result;
+                }
+                catch (OperationCanceledException)
+                {
+                    result.Status = WriteResultStatus.Canceled;
                     return result;
                 }
                 catch (Exception)
@@ -963,9 +1067,9 @@ namespace CavemanTcp
             },
             token);
 
-            Task delay = Task.Delay(timeoutMs, token);
-            Task first = await Task.WhenAny(task, delay);
-            tokenSource.Cancel();
+            Task delay = Task.Delay(timeoutMs, timeoutToken);
+            Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
+            timeoutCts.Cancel();
 
             if (first == task)
             {
@@ -978,15 +1082,82 @@ namespace CavemanTcp
             }
         }
 
-        private ReadResult ReadInternal(int timeoutMs, long count)
-        { 
+        #endregion
+
+        #region Read
+
+        private ReadResult ReadWithoutTimeoutInternal(long count)
+        {
+            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
+             
+            try
+            {
+                while (!_ReadSemaphore.Wait(10))
+                {
+                    Task.Delay(10).Wait();
+                }
+
+                MemoryStream ms = new MemoryStream();
+                long bytesRemaining = count;
+
+                while (bytesRemaining > 0)
+                {
+                    byte[] buffer = null;
+                    if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
+                    else buffer = new byte[bytesRemaining];
+
+                    int bytesRead = 0;
+                    if (!_Ssl) bytesRead = _NetworkStream.Read(buffer, 0, buffer.Length);
+                    else bytesRead = _SslStream.Read(buffer, 0, buffer.Length);
+
+                    if (bytesRead > 0)
+                    {
+                        ms.Write(buffer, 0, bytesRead);
+                        result.BytesRead += bytesRead;
+                        _Statistics.AddReceivedBytes(bytesRead);
+                        bytesRemaining -= bytesRead;
+                    }
+                }
+
+                ms.Seek(0, SeekOrigin.Begin);
+                result.DataStream = ms;
+                return result;
+            }
+            catch (TaskCanceledException)
+            {
+                result.Status = ReadResultStatus.Canceled;
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                result.Status = ReadResultStatus.Canceled;
+                return result;
+            }
+            catch (Exception)
+            {
+                _IsConnected = false;
+                _Events.HandleClientDisconnected(this);
+                throw;
+            }
+            finally
+            {
+                _ReadSemaphore.Release();
+            } 
+        }
+
+        private ReadResult ReadWithTimeoutInternal(int timeoutMs, long count)
+        {
             ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
             Task<ReadResult> task = Task.Run(() =>
             {
                 try
                 {
-                    _ReadSemaphore.Wait(1);
+                    while (!_ReadSemaphore.Wait(10))
+                    {
+                        Task.Delay(10).Wait();
+                    }
+
                     MemoryStream ms = new MemoryStream();
                     long bytesRemaining = count;
 
@@ -1013,6 +1184,16 @@ namespace CavemanTcp
                     result.DataStream = ms;
                     return result;
                 }
+                catch (TaskCanceledException)
+                {
+                    result.Status = ReadResultStatus.Canceled;
+                    return result;
+                }
+                catch (OperationCanceledException)
+                {
+                    result.Status = ReadResultStatus.Canceled;
+                    return result;
+                }
                 catch (Exception)
                 {
                     _IsConnected = false;
@@ -1023,7 +1204,7 @@ namespace CavemanTcp
                 {
                     _ReadSemaphore.Release();
                 }
-            });
+            }, _Token);
 
             bool success = task.Wait(TimeSpan.FromMilliseconds(timeoutMs));
 
@@ -1038,18 +1219,85 @@ namespace CavemanTcp
             }
         }
 
-        private async Task<ReadResult> ReadInternalAsync(int timeoutMs, long count)
+        private async Task<ReadResult> ReadWithoutTimeoutInternalAsync(long count, CancellationToken token)
+        {
+            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
+              
+            try
+            {
+                while (true)
+                {
+                    bool success = await _ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
+                    if (success) break;
+                    await Task.Delay(10).ConfigureAwait(false);
+                }
+
+                MemoryStream ms = new MemoryStream();
+                long bytesRemaining = count;
+
+                while (bytesRemaining > 0)
+                {
+                    byte[] buffer = null;
+                    if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
+                    else buffer = new byte[bytesRemaining];
+
+                    int bytesRead = 0;
+                    if (!_Ssl) bytesRead = await _NetworkStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+                    else bytesRead = await _SslStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+
+                    if (bytesRead > 0)
+                    {
+                        await ms.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
+                        result.BytesRead += bytesRead;
+                        _Statistics.AddReceivedBytes(bytesRead);
+                        bytesRemaining -= bytesRead;
+                    }
+                }
+
+                ms.Seek(0, SeekOrigin.Begin);
+                result.DataStream = ms;
+                return result;
+            }
+            catch (TaskCanceledException)
+            {
+                result.Status = ReadResultStatus.Canceled;
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                result.Status = ReadResultStatus.Canceled;
+                return result;
+            }
+            catch (Exception)
+            {
+                result.Status = ReadResultStatus.Disconnected;
+                result.DataStream = null;
+                return result;
+            }
+            finally
+            {
+                _ReadSemaphore.Release();
+            } 
+        }
+
+        private async Task<ReadResult> ReadWithTimeoutInternalAsync(int timeoutMs, long count, CancellationToken token)
         {
             ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
-            CancellationTokenSource tokenSource = new CancellationTokenSource();
-            CancellationToken token = tokenSource.Token;
+            CancellationTokenSource timeoutCts = new CancellationTokenSource();
+            CancellationToken timeoutToken = timeoutCts.Token;
 
             Task<ReadResult> task = Task.Run(async () =>
             {
                 try
                 {
-                    await _ReadSemaphore.WaitAsync(1);
+                    while (true)
+                    {
+                        bool success = await _ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
+                        if (success) break;
+                        await Task.Delay(10, token).ConfigureAwait(false);
+                    }
+
                     MemoryStream ms = new MemoryStream();
                     long bytesRemaining = count;
 
@@ -1060,12 +1308,12 @@ namespace CavemanTcp
                         else buffer = new byte[bytesRemaining];
 
                         int bytesRead = 0;
-                        if (!_Ssl) bytesRead = await _NetworkStream.ReadAsync(buffer, 0, buffer.Length);
-                        else bytesRead = await _SslStream.ReadAsync(buffer, 0, buffer.Length);
+                        if (!_Ssl) bytesRead = await _NetworkStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+                        else bytesRead = await _SslStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
 
                         if (bytesRead > 0)
                         {
-                            await ms.WriteAsync(buffer, 0, bytesRead);
+                            await ms.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
                             result.BytesRead += bytesRead;
                             _Statistics.AddReceivedBytes(bytesRead);
                             bytesRemaining -= bytesRead;
@@ -1076,10 +1324,14 @@ namespace CavemanTcp
                     result.DataStream = ms;
                     return result;
                 }
-                catch (ObjectDisposedException)
+                catch (TaskCanceledException)
                 {
-                    result.Status = ReadResultStatus.Disconnected;
-                    result.DataStream = null;
+                    result.Status = ReadResultStatus.Canceled;
+                    return result;
+                }
+                catch (OperationCanceledException)
+                {
+                    result.Status = ReadResultStatus.Canceled;
                     return result;
                 }
                 catch (Exception)
@@ -1096,8 +1348,8 @@ namespace CavemanTcp
             token);
 
             Task delay = Task.Delay(timeoutMs, token);
-            Task first = await Task.WhenAny(task, delay);
-            tokenSource.Cancel();
+            Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
+            timeoutCts.Cancel();
 
             if (first == task)
             {
@@ -1110,34 +1362,7 @@ namespace CavemanTcp
             }
         }
 
-        private void EnableKeepalives()
-        {
-            try
-            {
-#if (NETCOREAPP3_0 || NETCOREAPP3_1)
-
-                _Client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-                _Client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, _Keepalive.TcpKeepAliveTime);
-                _Client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, _Keepalive.TcpKeepAliveInterval);
-                _Client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, _Keepalive.TcpKeepAliveRetryCount);
-
-#elif NETFRAMEWORK
-
-                byte[] keepAlive = new byte[12]; 
-                Buffer.BlockCopy(BitConverter.GetBytes((uint)1), 0, keepAlive, 0, 4);
-                Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveTime), 0, keepAlive, 4, 4);
-                Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveInterval), 0, keepAlive, 8, 4);
-                _Client.Client.IOControl(IOControlCode.KeepAliveValues, keepAlive, null);
-
-#elif NETSTANDARD
-
-#endif
-            }
-            catch (Exception)
-            { 
-                Logger?.Invoke(_Header + "keepalives not supported on this platform, disabled"); 
-            }
-        }
+        #endregion
 
         #endregion
     }
