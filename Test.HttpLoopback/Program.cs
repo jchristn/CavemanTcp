@@ -11,6 +11,8 @@ namespace Test.HttpLoopback
 {
     class Program
     {
+        static string _Hostname = "localhost";
+        static int _Port = 9090;
         static CavemanTcpServer _Server = null;
 
         static string _HttpResponse =
@@ -28,22 +30,20 @@ namespace Test.HttpLoopback
 
             InitializeServer();
             _Server.Start();
-            Console.WriteLine("http://127.0.0.1:9090/");
-            Console.WriteLine("CTRL-C to exit");
+            Console.WriteLine("CavemanTcp listening on http://" + _Hostname + ":" + _Port + "/");
+            Console.WriteLine("ENTER to exit");
             Console.ReadLine();
         }
 
         static void InitializeServer()
         {
-            _Server = new CavemanTcpServer("127.0.0.1:9090");
+            _Server = new CavemanTcpServer(_Hostname, _Port);
             _Server.Settings.MonitorClientConnections = false; 
             _Server.Events.ClientConnected += ClientConnected;
         }
 
         static async void ClientConnected(object sender, ClientConnectedEventArgs args)
         {
-            // Console.WriteLine("Connection from " + args.IpPort);
-
             try
             {
                 string data = await ReadFully(args.IpPort);
