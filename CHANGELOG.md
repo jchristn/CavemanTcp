@@ -2,12 +2,16 @@
 
 ## Current Version
 
+v1.3.3
+
+- Breaking change, disabled TCP keepalives by default due to incompatibility in certain platforms
+ 
+## Previous Versions
+
 v1.3.2
 
 - .NET 5.0 support
 - Better async handling and cancellation
- 
-## Previous Versions
 
 v1.3.0
 

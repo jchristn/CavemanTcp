@@ -18,10 +18,9 @@ Since CavemanTcp relies on the consuming application to specify when to read or 
 
 As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; unfortunately .NET Standard does not offer this support, so it is not present for apps using CavemanTcp targeted to .NET Standard.
 
-## New in v1.3.2
+## New in v1.3.3
 
-- .NET 5.0 support
-- Better async handling and cancellation
+- Breaking change, disabled TCP keepalives by default due to incompatibility in certain platforms
  
 ## Examples
 
