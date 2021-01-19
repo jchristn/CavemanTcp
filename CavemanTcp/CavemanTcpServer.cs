@@ -353,8 +353,6 @@ namespace CavemanTcp
 
             _Listener = new TcpListener(_IPAddress, _Port);
 
-            if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
-
             _TokenSource = new CancellationTokenSource();
             _Token = _TokenSource.Token;
             _Statistics = new CavemanTcpStatistics();
@@ -373,9 +371,7 @@ namespace CavemanTcp
             if (_IsListening) throw new InvalidOperationException("CavemanTcpServer is already running.");
 
             _Listener = new TcpListener(_IPAddress, _Port);
-
-            if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
-
+             
             if (token == default(CancellationToken))
             {
                 _TokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -814,6 +810,37 @@ namespace CavemanTcp
             catch (Exception)
             {
                 Logger?.Invoke(_Header + "keepalives not supported on this platform, disabled");
+                _Keepalive.EnableTcpKeepAlives = false;
+            }
+        }
+
+        private void EnableKeepalives(TcpClient client)
+        {
+            try
+            {
+#if (NETCOREAPP3_0 || NETCOREAPP3_1 || NET5_0)
+
+                client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, _Keepalive.TcpKeepAliveTime);
+                client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, _Keepalive.TcpKeepAliveInterval);
+                client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, _Keepalive.TcpKeepAliveRetryCount);
+
+#elif NETFRAMEWORK
+
+                byte[] keepAlive = new byte[12];
+                Buffer.BlockCopy(BitConverter.GetBytes((uint)1), 0, keepAlive, 0, 4);
+                Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveTime), 0, keepAlive, 4, 4); 
+                Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveInterval), 0, keepAlive, 8, 4); 
+                client.Client.IOControl(IOControlCode.KeepAliveValues, keepAlive, null);
+
+#elif NETSTANDARD
+
+#endif
+            }
+            catch (Exception)
+            {
+                Logger?.Invoke(_Header + "keepalives not supported on this platform, disabled");
+                _Keepalive.EnableTcpKeepAlives = false;
             }
         }
 
@@ -854,6 +881,7 @@ namespace CavemanTcp
                 try
                 {
                     TcpClient tcpClient = await _Listener.AcceptTcpClientAsync().ConfigureAwait(false);
+                    if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives(tcpClient);
                     client = new ClientMetadata(tcpClient);
                     CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, client.Token);
                     Task unawaited = Task.Run(() => HandleClientConnection(client), linkedCts.Token);

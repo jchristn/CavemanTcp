@@ -685,6 +685,7 @@ namespace CavemanTcp
             catch (Exception)
             {
                 Logger?.Invoke(_Header + "keepalives not supported on this platform, disabled");
+                _Keepalive.EnableTcpKeepAlives = false;
             }
         }
 
