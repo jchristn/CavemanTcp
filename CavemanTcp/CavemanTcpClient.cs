@@ -105,6 +105,7 @@ namespace CavemanTcp
         private CavemanTcpKeepaliveSettings _Keepalive = new CavemanTcpKeepaliveSettings();
         private CavemanTcpStatistics _Statistics = new CavemanTcpStatistics();
 
+        private bool _IsDisposed = false;
         private bool _IsConnected = false; 
         private string _Header = "[CavemanTcp.Client] ";
         private string _ServerIp = null;
@@ -324,7 +325,7 @@ namespace CavemanTcp
         public void Disconnect()
         {
             if (!IsConnected) return;
-            Dispose(true);
+            Dispose();
         }
 
         /// <summary>
@@ -620,8 +621,14 @@ namespace CavemanTcp
         /// <param name="disposing">Dispose of resources.</param>
         protected virtual void Dispose(bool disposing)
         {
+            if (_IsDisposed) return;
+
             if (disposing)
             {
+                _IsDisposed = true;
+
+                Logger?.Invoke(_Header + "disposing");
+
                 try
                 {
                     _WriteSemaphore.Wait();
@@ -656,6 +663,8 @@ namespace CavemanTcp
                 }
 
                 _IsConnected = false;
+
+                Logger?.Invoke(_Header + "disposed");
             }
         }
 
@@ -722,6 +731,7 @@ namespace CavemanTcp
             }
 
             _Header = "[CavemanTcp.Client " + _ServerIp + ":" + _ServerPort + "] ";
+            _IsDisposed = false;
         }
 
         private bool IsClientConnected()
@@ -1137,8 +1147,9 @@ namespace CavemanTcp
             catch (Exception)
             {
                 _IsConnected = false;
-                _Events.HandleClientDisconnected(this);
-                throw;
+                result.Status = ReadResultStatus.Disconnected;
+                result.DataStream = null;
+                return result;
             }
             finally
             {
@@ -1150,15 +1161,18 @@ namespace CavemanTcp
         {
             ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
+            while (!_ReadSemaphore.Wait(10))
+            {
+                Task.Delay(10).Wait();
+            }
+
+            CancellationTokenSource cts = new CancellationTokenSource();
+            CancellationToken ct = cts.Token;
+
             Task<ReadResult> task = Task.Run(() =>
             {
                 try
                 {
-                    while (!_ReadSemaphore.Wait(10))
-                    {
-                        Task.Delay(10).Wait();
-                    }
-
                     MemoryStream ms = new MemoryStream();
                     long bytesRemaining = count;
 
@@ -1198,16 +1212,16 @@ namespace CavemanTcp
                 catch (Exception)
                 {
                     _IsConnected = false;
-                    _Events.HandleClientDisconnected(this);
-                    throw;
+                    result.Status = ReadResultStatus.Disconnected;
+                    result.DataStream = null;
+                    return result;
                 }
-                finally
-                {
-                    _ReadSemaphore.Release();
-                }
-            }, _Token);
+            }, ct);
 
             bool success = task.Wait(TimeSpan.FromMilliseconds(timeoutMs));
+            cts.Cancel();
+
+            _ReadSemaphore.Release();
 
             if (success)
             {
@@ -1271,6 +1285,7 @@ namespace CavemanTcp
             }
             catch (Exception)
             {
+                _IsConnected = false;
                 result.Status = ReadResultStatus.Disconnected;
                 result.DataStream = null;
                 return result;
@@ -1288,17 +1303,17 @@ namespace CavemanTcp
             CancellationTokenSource timeoutCts = new CancellationTokenSource();
             CancellationToken timeoutToken = timeoutCts.Token;
 
+            while (true)
+            {
+                bool success = await _ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
+                if (success) break;
+                await Task.Delay(10, token).ConfigureAwait(false);
+            }
+
             Task<ReadResult> task = Task.Run(async () =>
             {
                 try
                 {
-                    while (true)
-                    {
-                        bool success = await _ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
-                        if (success) break;
-                        await Task.Delay(10, token).ConfigureAwait(false);
-                    }
-
                     MemoryStream ms = new MemoryStream();
                     long bytesRemaining = count;
 
@@ -1337,13 +1352,10 @@ namespace CavemanTcp
                 }
                 catch (Exception)
                 {
+                    _IsConnected = false;
                     result.Status = ReadResultStatus.Disconnected;
                     result.DataStream = null;
                     return result;
-                }
-                finally
-                {
-                    _ReadSemaphore.Release();
                 }
             },
             token);
@@ -1351,6 +1363,8 @@ namespace CavemanTcp
             Task delay = Task.Delay(timeoutMs, token);
             Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
             timeoutCts.Cancel();
+
+            _ReadSemaphore.Release();
 
             if (first == task)
             {

@@ -21,6 +21,13 @@ namespace CavemanTcp
         /// </summary>
         public event EventHandler ClientDisconnected;
 
+        /*
+        /// <summary>
+        /// Event to fire when an exception is encountered.
+        /// </summary>
+        public event EventHandler<UnhandledExceptionEventArgs> ExceptionEncountered;
+        */
+
         #endregion
 
         #region Private-Members
@@ -53,6 +60,12 @@ namespace CavemanTcp
         internal void HandleClientDisconnected(object sender)
         {
             ClientDisconnected?.Invoke(sender, EventArgs.Empty);
+        }
+
+        internal void HandleExceptionEncountered(object sender, Exception e)
+        {
+            UnhandledExceptionEventArgs u = new UnhandledExceptionEventArgs(e, true);
+            // ExceptionEncountered?.Invoke(sender, u);
         }
 
         #endregion

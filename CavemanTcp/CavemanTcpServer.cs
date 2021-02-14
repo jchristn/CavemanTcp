@@ -736,6 +736,8 @@ namespace CavemanTcp
         {
             if (disposing)
             {
+                Logger?.Invoke(_Header + "disposing");
+
                 try
                 {
                     lock (_ClientsLock)
