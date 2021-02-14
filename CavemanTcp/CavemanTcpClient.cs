@@ -310,12 +310,12 @@ namespace CavemanTcp
                 wh.Close();
             }
 
+            _IsConnected = true;
             _Statistics = new CavemanTcpStatistics();
             _TokenSource = new CancellationTokenSource();
             _Token = _TokenSource.Token; 
-            _ConnectionMonitor = Task.Run(() => ConnectionMonitor(), _Token); 
+            _ConnectionMonitor = Task.Run(() => ConnectionMonitor(), _Token);
             _Events.HandleClientConnected(this); 
-            _IsConnected = true;
         }
 
         /// <summary>
