@@ -302,8 +302,10 @@ namespace CavemanTcp
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                Logger?.Invoke(_Header + "exception while connecting to " + _ServerIp + ":" + _ServerPort + Environment.NewLine + SerializationHelper.SerializeJson(e, true));
+                _Events.HandleExceptionEncountered(this, e);
                 throw;
             }
             finally
@@ -656,6 +658,14 @@ namespace CavemanTcp
                         _Client = null;
                     }
                 }
+                catch (Exception e)
+                {
+                    Logger?.Invoke(_Header + "dispose exception:" +
+                        Environment.NewLine +
+                        e.ToString() +
+                        Environment.NewLine);
+                    _Events.HandleExceptionEncountered(this, e);
+                }
                 finally
                 {
                     _ReadSemaphore.Release();
@@ -788,6 +798,7 @@ namespace CavemanTcp
             catch (Exception e)
             {
                 Logger?.Invoke(_Header + "connection monitor exception:" + Environment.NewLine + e.ToString());
+                _Events.HandleExceptionEncountered(this, e);
             }
             finally
             {
@@ -801,6 +812,7 @@ namespace CavemanTcp
 
         #region Send
 
+        // No cancellation token
         private WriteResult SendWithoutTimeoutInternal(long contentLength, Stream stream)
         {
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
@@ -864,19 +876,23 @@ namespace CavemanTcp
             } 
         }
 
+        // Timeout cancellation token
         private WriteResult SendWithTimeoutInternal(int timeoutMs, long contentLength, Stream stream)
         {
+            var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_TokenSource.Token);
+            var timeoutToken = timeoutCts.Token;
+
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
+
+            while (!_WriteSemaphore.Wait(10))
+            {
+                Task.Delay(10).Wait();
+            }
 
             Task<WriteResult> task = Task.Run(() =>
             {
                 try
                 {
-                    while (!_WriteSemaphore.Wait(10))
-                    {
-                        Task.Delay(10).Wait();
-                    }
-
                     if (contentLength > 0 && stream != null && stream.CanRead)
                     {
                         long bytesRemaining = contentLength;
@@ -922,14 +938,13 @@ namespace CavemanTcp
                     result.Status = WriteResultStatus.Disconnected;
                     _IsConnected = false;
                     return result;
-                }
-                finally
-                {
-                    _WriteSemaphore.Release();
-                }
-            }, _Token);
+                } 
+            }, timeoutToken);
 
             bool success = task.Wait(TimeSpan.FromMilliseconds(timeoutMs));
+            timeoutCts.Cancel();
+
+            _WriteSemaphore.Release();
 
             if (success)
             {
@@ -942,8 +957,9 @@ namespace CavemanTcp
             }
         }
 
+        // Supplied cancellation token
         private async Task<WriteResult> SendWithoutTimeoutInternalAsync(long contentLength, Stream stream, CancellationToken token)
-        {
+        {  
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
              
             try
@@ -1007,24 +1023,25 @@ namespace CavemanTcp
             } 
         }
 
+        // Supplied cancellation token, timeout cancellation token
         private async Task<WriteResult> SendWithTimeoutInternalAsync(int timeoutMs, long contentLength, Stream stream, CancellationToken token)
         {
-            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
-
             CancellationTokenSource timeoutCts = new CancellationTokenSource();
             CancellationToken timeoutToken = timeoutCts.Token;
+
+            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
+             
+            while (true)
+            {
+                bool success = await _WriteSemaphore.WaitAsync(10, token).ConfigureAwait(false);
+                if (success) break;
+                await Task.Delay(10, token).ConfigureAwait(false);
+            }
 
             Task<WriteResult> task = Task.Run(async () =>
             {
                 try
                 {
-                    while (true)
-                    {
-                        bool success = await _WriteSemaphore.WaitAsync(10, token).ConfigureAwait(false);
-                        if (success) break;
-                        await Task.Delay(10, token).ConfigureAwait(false);
-                    }
-
                     if (contentLength > 0 && stream != null && stream.CanRead)
                     {
                         long bytesRemaining = contentLength;
@@ -1070,17 +1087,15 @@ namespace CavemanTcp
                     result.Status = WriteResultStatus.Disconnected;
                     _IsConnected = false;
                     return result;
-                }
-                finally
-                {
-                    _WriteSemaphore.Release();
-                }
+                } 
             },
-            token);
+            timeoutToken);
 
             Task delay = Task.Delay(timeoutMs, timeoutToken);
             Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
             timeoutCts.Cancel();
+
+            _WriteSemaphore.Release();
 
             if (first == task)
             {
@@ -1097,6 +1112,7 @@ namespace CavemanTcp
 
         #region Read
 
+        // No cancellation token
         private ReadResult ReadWithoutTimeoutInternal(long count)
         {
             ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
@@ -1157,17 +1173,18 @@ namespace CavemanTcp
             } 
         }
 
+        // Timeout cancellation token
         private ReadResult ReadWithTimeoutInternal(int timeoutMs, long count)
         {
+            CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_Token);
+            CancellationToken timeoutToken = timeoutCts.Token;
+
             ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
             while (!_ReadSemaphore.Wait(10))
             {
                 Task.Delay(10).Wait();
             }
-
-            CancellationTokenSource cts = new CancellationTokenSource();
-            CancellationToken ct = cts.Token;
 
             Task<ReadResult> task = Task.Run(() =>
             {
@@ -1216,10 +1233,10 @@ namespace CavemanTcp
                     result.DataStream = null;
                     return result;
                 }
-            }, ct);
+            }, timeoutToken);
 
             bool success = task.Wait(TimeSpan.FromMilliseconds(timeoutMs));
-            cts.Cancel();
+            timeoutCts.Cancel();
 
             _ReadSemaphore.Release();
 
@@ -1234,6 +1251,7 @@ namespace CavemanTcp
             }
         }
 
+        // Supplied cancellation token
         private async Task<ReadResult> ReadWithoutTimeoutInternalAsync(long count, CancellationToken token)
         {
             ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
@@ -1296,12 +1314,13 @@ namespace CavemanTcp
             } 
         }
 
+        // Supplied cancellation token, timeout cancellation token
         private async Task<ReadResult> ReadWithTimeoutInternalAsync(int timeoutMs, long count, CancellationToken token)
         {
-            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
-
-            CancellationTokenSource timeoutCts = new CancellationTokenSource();
+            CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, token);
             CancellationToken timeoutToken = timeoutCts.Token;
+
+            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
             while (true)
             {
@@ -1358,7 +1377,7 @@ namespace CavemanTcp
                     return result;
                 }
             },
-            token);
+            timeoutToken);
 
             Task delay = Task.Delay(timeoutMs, token);
             Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);

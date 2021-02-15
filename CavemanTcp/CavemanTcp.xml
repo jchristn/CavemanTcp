@@ -246,6 +246,11 @@
             Event to fire when the client disconnects.
             </summary>
         </member>
+        <member name="E:CavemanTcp.CavemanTcpClientEvents.ExceptionEncountered">
+            <summary>
+            Event to fire when an exception is encountered.
+            </summary>
+        </member>
         <member name="M:CavemanTcp.CavemanTcpClientEvents.#ctor">
             <summary>
             Instantiate the object.
@@ -600,6 +605,11 @@
             Event to fire when a client disconnects.  A string containing the client IP:port will be passed.
             </summary>
         </member>
+        <member name="E:CavemanTcp.CavemanTcpServerEvents.ExceptionEncountered">
+            <summary>
+            Event to fire when an exception is encountered.
+            </summary>
+        </member>
         <member name="M:CavemanTcp.CavemanTcpServerEvents.#ctor">
             <summary>
             Instantiate the object.
@@ -719,6 +729,21 @@
         <member name="F:CavemanTcp.DisconnectReason.Timeout">
             <summary>
             Client connection timed out; server did not receive data within the timeout window.
+            </summary>
+        </member>
+        <member name="T:CavemanTcp.ExceptionEventArgs">
+            <summary>
+            Event arguments for when an exception is encountered. 
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.ExceptionEventArgs.Exception">
+            <summary>
+            Exception.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.ExceptionEventArgs.Json">
+            <summary>
+            JSON representation of the exception.
             </summary>
         </member>
         <member name="T:CavemanTcp.ReadResult">

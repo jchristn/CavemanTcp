@@ -18,9 +18,10 @@ Since CavemanTcp relies on the consuming application to specify when to read or 
 
 As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; unfortunately .NET Standard does not offer this support, so it is not present for apps using CavemanTcp targeted to .NET Standard.
 
-## New in v1.3.3
+## New in v1.3.4
 
-- Breaking change, disabled TCP keepalives by default due to incompatibility in certain platforms
+- Package fixes around timeouts, disconnections, and documentation
+- Special thanks to @LeaT113!
  
 ## Examples
 
@@ -166,6 +167,12 @@ Some important notes about TCP keepalives:
 - Keepalives only work in .NET Core and .NET Framework
 - Keepalives can be enabled on either client or server, but generally only work on server (being investigated)
 - ```Keepalive.TcpKeepAliveRetryCount``` is only applicable to .NET Core; for .NET Framework, this value is forced to 10
+
+## Special Thanks
+
+A special thanks to those that have helped improve the library thus far!
+
+@LeaT113 @Kliodna @zzampong
 
 ## Help or Feedback
 

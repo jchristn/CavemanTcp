@@ -20,17 +20,18 @@ namespace CavemanTcp
         /// Event to fire when the client disconnects.
         /// </summary>
         public event EventHandler ClientDisconnected;
-
-        /*
+         
         /// <summary>
         /// Event to fire when an exception is encountered.
         /// </summary>
-        public event EventHandler<UnhandledExceptionEventArgs> ExceptionEncountered;
-        */
+        public event EventHandler<ExceptionEventArgs> ExceptionEncountered; 
 
         #endregion
 
         #region Private-Members
+
+        private bool _ClientConnectedFiring = false;
+        private bool _ClientDisconnectedFiring = false;
 
         #endregion
 
@@ -54,23 +55,47 @@ namespace CavemanTcp
 
         internal void HandleClientConnected(object sender)
         {
-            ClientConnected?.Invoke(sender, EventArgs.Empty);
+            if (_ClientConnectedFiring) return;
+
+            _ClientConnectedFiring = true;
+            WrappedEventHandler(() => ClientConnected?.Invoke(sender, EventArgs.Empty), "ClientConnected", sender);
+            _ClientConnectedFiring = false;
         }
 
         internal void HandleClientDisconnected(object sender)
         {
-            ClientDisconnected?.Invoke(sender, EventArgs.Empty);
+            if (_ClientDisconnectedFiring) return;
+
+            _ClientDisconnectedFiring = true; 
+            WrappedEventHandler(() => ClientDisconnected?.Invoke(sender, EventArgs.Empty), "ClientDisconnected", sender);
+            _ClientDisconnectedFiring = false;
         }
 
         internal void HandleExceptionEncountered(object sender, Exception e)
         {
-            UnhandledExceptionEventArgs u = new UnhandledExceptionEventArgs(e, true);
-            // ExceptionEncountered?.Invoke(sender, u);
+            ExceptionEventArgs args = new ExceptionEventArgs(e);
+            WrappedEventHandler(() => ExceptionEncountered?.Invoke(sender, args), "ExceptionEncountered", sender);
         }
 
         #endregion
 
         #region Private-Methods
+
+        private void WrappedEventHandler(Action action, string handler, object sender)
+        {
+            if (action == null) return;
+
+            Action<string> logger = ((CavemanTcpClient)sender).Logger;
+
+            try
+            {
+                action.Invoke();
+            }
+            catch (Exception e)
+            {
+                logger?.Invoke("Event handler exception in " + handler + ": " + Environment.NewLine + SerializationHelper.SerializeJson(e, true));
+            }
+        }
 
         #endregion
     }

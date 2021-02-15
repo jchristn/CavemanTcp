@@ -21,12 +21,10 @@ namespace CavemanTcp
         /// </summary>
         public event EventHandler<ClientDisconnectedEventArgs> ClientDisconnected;
 
-        /*
         /// <summary>
         /// Event to fire when an exception is encountered.
         /// </summary>
-        public event EventHandler<UnhandledExceptionEventArgs> ExceptionEncountered;
-        */
+        public event EventHandler<ExceptionEventArgs> ExceptionEncountered;
 
         #endregion
 
@@ -53,24 +51,40 @@ namespace CavemanTcp
         #region Internal-Methods
          
         internal void HandleClientConnected(object sender, ClientConnectedEventArgs args)
-        {
-            ClientConnected?.Invoke(sender, args);
+        { 
+            WrappedEventHandler(() => ClientConnected?.Invoke(sender, args), "ClientConnected", sender);
         }
 
         internal void HandleClientDisconnected(object sender, ClientDisconnectedEventArgs args)
-        {
-            ClientDisconnected?.Invoke(sender, args);
+        { 
+            WrappedEventHandler(() => ClientDisconnected?.Invoke(sender, args), "ClientDisconnected", sender);
         }
 
         internal void HandleExceptionEncountered(object sender, Exception e)
         {
-            UnhandledExceptionEventArgs u = new UnhandledExceptionEventArgs(e, true);
-            // ExceptionEncountered?.Invoke(sender, u);
+            ExceptionEventArgs args = new ExceptionEventArgs(e);
+            WrappedEventHandler(() => ExceptionEncountered?.Invoke(sender, args), "ExceptionEncountered", sender);
         }
 
         #endregion
 
         #region Private-Methods
+
+        private void WrappedEventHandler(Action action, string handler, object sender)
+        {
+            if (action == null) return;
+
+            Action<string> logger = ((CavemanTcpServer)sender).Logger;
+
+            try
+            {
+                action.Invoke();
+            }
+            catch (Exception e)
+            {
+                logger?.Invoke("Event handler exception in " + handler + ": " + Environment.NewLine + SerializationHelper.SerializeJson(e, true));
+            }
+        }
 
         #endregion
     }
