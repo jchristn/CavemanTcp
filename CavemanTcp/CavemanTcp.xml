@@ -281,6 +281,11 @@
             Enable or disable connection monitor.
             </summary>
         </member>
+        <member name="P:CavemanTcp.CavemanTcpClientSettings.PollIntervalMicroSeconds">
+            <summary>
+            Connection monitor polling interval, in microseconds.
+            </summary>
+        </member>
         <member name="M:CavemanTcp.CavemanTcpClientSettings.#ctor">
             <summary>
             Instantiate the object.

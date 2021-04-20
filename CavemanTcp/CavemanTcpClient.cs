@@ -105,7 +105,6 @@ namespace CavemanTcp
         private CavemanTcpKeepaliveSettings _Keepalive = new CavemanTcpKeepaliveSettings();
         private CavemanTcpStatistics _Statistics = new CavemanTcpStatistics();
 
-        private bool _IsDisposed = false;
         private bool _IsConnected = false; 
         private string _Header = "[CavemanTcp.Client] ";
         private string _ServerIp = null;
@@ -128,7 +127,6 @@ namespace CavemanTcp
         private CancellationToken _Token;
         private Task _ConnectionMonitor = null;
         private readonly object _PollLock = new object();
-        private int _PollIntervalMicroSeconds = 10;
 
         #endregion
 
@@ -630,12 +628,8 @@ namespace CavemanTcp
         /// <param name="disposing">Dispose of resources.</param>
         protected virtual void Dispose(bool disposing)
         {
-            if (_IsDisposed) return;
-
             if (disposing)
             {
-                _IsDisposed = true;
-
                 Logger?.Invoke(_Header + "disposing");
 
                 try
@@ -748,7 +742,6 @@ namespace CavemanTcp
             }
 
             _Header = "[CavemanTcp.Client " + _ServerIp + ":" + _ServerPort + "] ";
-            _IsDisposed = false;
         }
 
         private bool IsClientConnected()
@@ -758,7 +751,7 @@ namespace CavemanTcp
 
             lock (_PollLock)
             {
-                if ((_Client.Client.Poll(_PollIntervalMicroSeconds, SelectMode.SelectWrite)) && (!_Client.Client.Poll(_PollIntervalMicroSeconds, SelectMode.SelectError)))
+                if ((_Client.Client.Poll(_Settings.PollIntervalMicroSeconds, SelectMode.SelectWrite)) && (!_Client.Client.Poll(_Settings.PollIntervalMicroSeconds, SelectMode.SelectError)))
                 {
                     byte[] buffer = new byte[1];
                     if (_Client.Client.Receive(buffer, SocketFlags.Peek) == 0)
@@ -801,15 +794,18 @@ namespace CavemanTcp
             }
             catch (SocketException se)
             {
-                Logger?.Invoke(_Header + "socket exception" + Environment.NewLine + se.ToString());
+                if (!_TokenSource.IsCancellationRequested)
+                    Logger?.Invoke(_Header + "socket exception" + Environment.NewLine + se.ToString());
             }
             catch (TaskCanceledException tce)
             {
-                Logger?.Invoke(_Header + "task canceled exception" + Environment.NewLine + tce.ToString());
+                if (!_TokenSource.IsCancellationRequested)
+                    Logger?.Invoke(_Header + "task canceled exception" + Environment.NewLine + tce.ToString());
             }
             catch (OperationCanceledException oce)
             {
-                Logger?.Invoke(_Header + "operation canceled exception" + Environment.NewLine + oce.ToString());
+                if (!_TokenSource.IsCancellationRequested)
+                    Logger?.Invoke(_Header + "operation canceled exception" + Environment.NewLine + oce.ToString());
             }
             catch (Exception e)
             {
