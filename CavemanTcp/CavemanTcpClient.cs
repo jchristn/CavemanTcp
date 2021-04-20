@@ -316,8 +316,13 @@ namespace CavemanTcp
             _IsConnected = true;
             _Statistics = new CavemanTcpStatistics();
             _TokenSource = new CancellationTokenSource();
-            _Token = _TokenSource.Token; 
-            _ConnectionMonitor = Task.Run(() => ConnectionMonitor(), _Token);
+            _Token = _TokenSource.Token;
+            
+            if (_Settings.EnableConnectionMonitor)
+            {
+                _ConnectionMonitor = Task.Run(() => ConnectionMonitor(), _Token);
+            }
+
             _Events.HandleClientConnected(this); 
         }
 
@@ -754,6 +759,7 @@ namespace CavemanTcp
                 byte[] buffer = new byte[1];
                 if (_Client.Client.Receive(buffer, SocketFlags.Peek) == 0)
                 {
+                    Logger?.Invoke(_Header + "socket peek returned false");
                     return false;
                 }
                 else
@@ -763,6 +769,7 @@ namespace CavemanTcp
             }
             else
             {
+                Logger?.Invoke(_Header + "unable to poll client socket");
                 return false;
             }
         }
@@ -782,18 +789,22 @@ namespace CavemanTcp
 
                     if (!IsClientConnected())
                     {
+                        Logger?.Invoke(_Header + "disconnection detected");
                         break;
                     }
                 }
             }
-            catch (SocketException)
-            { 
+            catch (SocketException se)
+            {
+                Logger?.Invoke(_Header + "socket exception" + Environment.NewLine + se.ToString());
             }
-            catch (TaskCanceledException)
-            { 
+            catch (TaskCanceledException tce)
+            {
+                Logger?.Invoke(_Header + "task canceled exception" + Environment.NewLine + tce.ToString());
             }
-            catch (OperationCanceledException)
-            { 
+            catch (OperationCanceledException oce)
+            {
+                Logger?.Invoke(_Header + "operation canceled exception" + Environment.NewLine + oce.ToString());
             }
             catch (Exception e)
             {

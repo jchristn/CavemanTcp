@@ -30,12 +30,17 @@ namespace CavemanTcp
         /// <summary>
         /// Enable or disable acceptance of invalid SSL certificates.
         /// </summary>
-        public bool AcceptInvalidCertificates = true;
+        public bool AcceptInvalidCertificates { get; set; } = true;
 
         /// <summary>
         /// Enable or disable mutual authentication of SSL client and server.
         /// </summary>
-        public bool MutuallyAuthenticate = false;
+        public bool MutuallyAuthenticate { get; set; } = false;
+
+        /// <summary>
+        /// Enable or disable connection monitor.
+        /// </summary>
+        public bool EnableConnectionMonitor { get; set; } = true;
 
         #endregion
 

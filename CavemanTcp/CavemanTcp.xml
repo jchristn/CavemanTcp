@@ -266,14 +266,19 @@
             Buffer size to use while interacting with streams.
             </summary>
         </member>
-        <member name="F:CavemanTcp.CavemanTcpClientSettings.AcceptInvalidCertificates">
+        <member name="P:CavemanTcp.CavemanTcpClientSettings.AcceptInvalidCertificates">
             <summary>
             Enable or disable acceptance of invalid SSL certificates.
             </summary>
         </member>
-        <member name="F:CavemanTcp.CavemanTcpClientSettings.MutuallyAuthenticate">
+        <member name="P:CavemanTcp.CavemanTcpClientSettings.MutuallyAuthenticate">
             <summary>
             Enable or disable mutual authentication of SSL client and server.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpClientSettings.EnableConnectionMonitor">
+            <summary>
+            Enable or disable connection monitor.
             </summary>
         </member>
         <member name="M:CavemanTcp.CavemanTcpClientSettings.#ctor">
