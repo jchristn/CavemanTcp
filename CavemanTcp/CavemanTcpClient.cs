@@ -127,6 +127,8 @@ namespace CavemanTcp
         private CancellationTokenSource _TokenSource = new CancellationTokenSource();
         private CancellationToken _Token;
         private Task _ConnectionMonitor = null;
+        private readonly object _PollLock = new object();
+        private int _PollIntervalMicroSeconds = 10;
 
         #endregion
 
@@ -754,23 +756,26 @@ namespace CavemanTcp
             if (_Client == null) return false;
             if (!_Client.Connected) return false;
 
-            if ((_Client.Client.Poll(0, SelectMode.SelectWrite)) && (!_Client.Client.Poll(0, SelectMode.SelectError)))
+            lock (_PollLock)
             {
-                byte[] buffer = new byte[1];
-                if (_Client.Client.Receive(buffer, SocketFlags.Peek) == 0)
+                if ((_Client.Client.Poll(_PollIntervalMicroSeconds, SelectMode.SelectWrite)) && (!_Client.Client.Poll(_PollIntervalMicroSeconds, SelectMode.SelectError)))
                 {
-                    Logger?.Invoke(_Header + "socket peek returned false");
-                    return false;
+                    byte[] buffer = new byte[1];
+                    if (_Client.Client.Receive(buffer, SocketFlags.Peek) == 0)
+                    {
+                        Logger?.Invoke(_Header + "socket peek returned false");
+                        return false;
+                    }
+                    else
+                    {
+                        return true;
+                    }
                 }
                 else
                 {
-                    return true;
+                    Logger?.Invoke(_Header + "unable to poll client socket");
+                    return false;
                 }
-            }
-            else
-            {
-                Logger?.Invoke(_Header + "unable to poll client socket");
-                return false;
             }
         }
 
