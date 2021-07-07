@@ -352,6 +352,7 @@ namespace CavemanTcp
             _Token = _TokenSource.Token;
 
             _Listener = new TcpListener(_IPAddress, _Port);
+            _Listener.Start();
 
             _TokenSource = new CancellationTokenSource();
             _Token = _TokenSource.Token;
@@ -371,7 +372,8 @@ namespace CavemanTcp
             if (_IsListening) throw new InvalidOperationException("CavemanTcpServer is already running.");
 
             _Listener = new TcpListener(_IPAddress, _Port);
-             
+            _Listener.Start();
+
             if (token == default(CancellationToken))
             {
                 _TokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -875,7 +877,6 @@ namespace CavemanTcp
         private async Task AcceptConnections()
         {
             _IsListening = true;
-            _Listener.Start();
 
             while (!_Token.IsCancellationRequested)
             {
