@@ -172,7 +172,7 @@ Some important notes about TCP keepalives:
 
 A special thanks to those that have helped improve the library thus far!
 
-@LeaT113 @Kliodna @zzampong
+@LeaT113 @Kliodna @zzampong @SaintedPsycho
 
 ## Help or Feedback
 

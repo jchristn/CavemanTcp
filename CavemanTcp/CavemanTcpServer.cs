@@ -348,14 +348,12 @@ namespace CavemanTcp
         {
             if (_IsListening) throw new InvalidOperationException("CavemanTcpServer is already running.");
 
-            _TokenSource = new CancellationTokenSource();
-            _Token = _TokenSource.Token;
-
             _Listener = new TcpListener(_IPAddress, _Port);
             _Listener.Start();
 
             _TokenSource = new CancellationTokenSource();
             _Token = _TokenSource.Token;
+
             _Statistics = new CavemanTcpStatistics();
             _AcceptConnections = Task.Run(() => AcceptConnections(), _Token);
 
@@ -387,6 +385,8 @@ namespace CavemanTcp
 
             _Statistics = new CavemanTcpStatistics();
             _AcceptConnections = Task.Run(() => AcceptConnections(), _Token);
+
+            Logger?.Invoke(_Header + "started");
             return _AcceptConnections; // sets _IsListening 
         }
 
@@ -888,7 +888,10 @@ namespace CavemanTcp
                     if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives(tcpClient);
                     client = new ClientMetadata(tcpClient);
                     CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, client.Token);
-                    Task unawaited = Task.Run(() => HandleClientConnection(client), linkedCts.Token);
+
+                    var _ = HandleClientConnection(client, linkedCts.Token)
+                        .ContinueWith(x => linkedCts.Dispose())
+                        .ConfigureAwait(false);
                 }
                 catch (TaskCanceledException)
                 {
@@ -1182,6 +1185,7 @@ namespace CavemanTcp
                 finally
                 {
                     if (client != null) client.WriteSemaphore.Release();
+                    timeoutCts.Dispose();
                 }
             }, timeoutToken);
 
@@ -1337,6 +1341,7 @@ namespace CavemanTcp
                 finally
                 {
                     if (client != null) client.WriteSemaphore.Release();
+                    timeoutCts.Dispose();
                 }
             },
             timeoutToken);
@@ -1496,9 +1501,10 @@ namespace CavemanTcp
             }, timeoutToken);
 
             bool success = task.Wait(TimeSpan.FromMilliseconds(timeoutMs));
-            timeoutCts.Cancel();
-
             if (client != null) client.ReadSemaphore.Release();
+
+            timeoutCts.Cancel();
+            timeoutCts.Dispose();
 
             if (success)
             {
@@ -1648,16 +1654,15 @@ namespace CavemanTcp
                     RemoveAndDisposeClient(ipPort);
                     return result;
                 }
-                finally
-                {
-                    if (client != null) client.ReadSemaphore.Release();
-                }
             },
             timeoutToken);
 
             Task delay = Task.Delay(timeoutMs, timeoutToken);
             Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
+            if (client != null) client.ReadSemaphore.Release();
+
             timeoutCts.Cancel();
+            timeoutCts.Dispose();
 
             if (first == task)
             {
