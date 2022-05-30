@@ -972,7 +972,7 @@ namespace CavemanTcp
                 await client.SslStream.AuthenticateAsServerAsync(
                     _SslCertificate,
                     _Settings.MutuallyAuthenticate,
-                    SslProtocols.Tls12,
+                    Common.GetSslProtocols(),
                     !_Settings.AcceptInvalidCertificates).ConfigureAwait(false);
 
                 if (!client.SslStream.IsEncrypted)
