@@ -328,6 +328,19 @@ namespace CavemanTcp
             _Header = "[CavemanTcp.Server " + _ListenerIp + ":" + _Port + "] ";
         }
 
+        /// <summary>
+        /// Instantiates the TCP server.  Set the ClientConnected, ClientDisconnected, and DataReceived callbacks.  Once set, use Start() to begin listening for connections.
+        /// </summary>
+        /// <param name="listenerIp">The listener IP address or hostname.</param>
+        /// <param name="port">The TCP port on which to listen.</param>
+        /// <param name="sslCertificate">The certificate for SSL listen.</param>
+        public CavemanTcpServer(string listenerIp, int port, X509Certificate2 sslCertificate) : this(listenerIp, port)
+        {
+            _Ssl = true;
+            _SslCertificate = sslCertificate ?? throw new ArgumentException("Certificate must be not null.");
+            _SslCertificateCollection = new X509Certificate2Collection { _SslCertificate };
+        }
+
         #endregion
 
         #region Public-Methods

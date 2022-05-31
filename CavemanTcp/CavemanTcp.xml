@@ -398,6 +398,14 @@
             <param name="pfxCertFilename">The filename of the PFX certificate file.</param>
             <param name="pfxPassword">The password to the PFX certificate file.</param>
         </member>
+        <member name="M:CavemanTcp.CavemanTcpServer.#ctor(System.String,System.Int32,System.Security.Cryptography.X509Certificates.X509Certificate2)">
+            <summary>
+            Instantiates the TCP server.  Set the ClientConnected, ClientDisconnected, and DataReceived callbacks.  Once set, use Start() to begin listening for connections.
+            </summary>
+            <param name="listenerIp">The listener IP address or hostname.</param>
+            <param name="port">The TCP port on which to listen.</param>
+            <param name="sslCertificate">The certificate for SSL listen.</param>
+        </member>
         <member name="M:CavemanTcp.CavemanTcpServer.Dispose">
             <summary>
             Dispose of the TCP server.
