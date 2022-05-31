@@ -175,7 +175,8 @@ namespace CavemanTcp
         /// </summary>
         /// <param name="listenerIp">The listener IP address or hostname.</param>
         /// <param name="port">The TCP port on which to listen.</param> 
-        public CavemanTcpServer(string listenerIp, int port)
+        /// <param name="certificate">SSL certificate.</param>
+        public CavemanTcpServer(string listenerIp, int port, X509Certificate2 certificate = null)
         {
             if (String.IsNullOrEmpty(listenerIp)) throw new ArgumentNullException(nameof(listenerIp));
             if (port < 0) throw new ArgumentException("Port must be zero or greater.");
@@ -202,6 +203,13 @@ namespace CavemanTcp
 
             _Port = port;
             _IsListening = false;
+
+            if (certificate != null)
+            {
+                _Ssl = true;
+                _SslCertificate = certificate;
+                _SslCertificateCollection = new X509Certificate2Collection { _SslCertificate };
+            }
 
             _Header = "[CavemanTcp.Server " + _ListenerIp + ":" + _Port + "] ";
         }
@@ -327,7 +335,7 @@ namespace CavemanTcp
 
             _Header = "[CavemanTcp.Server " + _ListenerIp + ":" + _Port + "] ";
         }
-
+        
         #endregion
 
         #region Public-Methods

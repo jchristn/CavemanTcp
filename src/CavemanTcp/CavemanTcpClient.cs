@@ -117,8 +117,8 @@ namespace CavemanTcp
         private string _PfxCertFilename = null;
         private string _PfxPassword = null;
         private SslStream _SslStream = null;
-        private X509Certificate2 _SslCert = null;
-        private X509Certificate2Collection _SslCertCollection;
+        private X509Certificate2 _SslCertificate = null;
+        private X509Certificate2Collection _SslCertificateCollection;
 
         private SemaphoreSlim _WriteSemaphore = new SemaphoreSlim(1, 1);
         private SemaphoreSlim _ReadSemaphore = new SemaphoreSlim(1, 1);
@@ -158,7 +158,8 @@ namespace CavemanTcp
         /// </summary>
         /// <param name="serverIpOrHostname">The server IP address or hostname.</param>
         /// <param name="port">The TCP port on which to connect.</param>
-        public CavemanTcpClient(string serverIpOrHostname, int port)
+        /// <param name="certificate">SSL certificate.</param>
+        public CavemanTcpClient(string serverIpOrHostname, int port, X509Certificate2 certificate = null)
         {
             if (String.IsNullOrEmpty(serverIpOrHostname)) throw new ArgumentNullException(nameof(serverIpOrHostname));
             if (port < 0) throw new ArgumentException("Port must be zero or greater.");
@@ -172,6 +173,13 @@ namespace CavemanTcp
             }
 
             _ServerPort = port;
+
+            if (certificate != null)
+            {
+                _Ssl = true;
+                _SslCertificate = certificate;
+                _SslCertificateCollection = new X509Certificate2Collection { _SslCertificate };
+            }
 
             InitializeClient();
         }
@@ -284,7 +292,7 @@ namespace CavemanTcp
                         _SslStream = new SslStream(_NetworkStream, false);
                     }
 
-                    _SslStream.AuthenticateAsClient(_ServerIp, _SslCertCollection, Common.GetSslProtocol, !_Settings.AcceptInvalidCertificates);
+                    _SslStream.AuthenticateAsClient(_ServerIp, _SslCertificateCollection, Common.GetSslProtocol, !_Settings.AcceptInvalidCertificates);
 
                     if (!_SslStream.IsEncrypted)
                     {
@@ -721,23 +729,21 @@ namespace CavemanTcp
 
             _Client = new System.Net.Sockets.TcpClient();
             _SslStream = null;
-            _SslCert = null;
-            _SslCertCollection = null;
 
-            if (_Ssl)
+            if (_Ssl && _SslCertificate == null)
             {
                 if (String.IsNullOrEmpty(_PfxPassword))
                 {
-                    _SslCert = new X509Certificate2(_PfxCertFilename);
+                    _SslCertificate = new X509Certificate2(_PfxCertFilename);
                 }
                 else
                 {
-                    _SslCert = new X509Certificate2(_PfxCertFilename, _PfxPassword);
+                    _SslCertificate = new X509Certificate2(_PfxCertFilename, _PfxPassword);
                 }
 
-                _SslCertCollection = new X509Certificate2Collection
+                _SslCertificateCollection = new X509Certificate2Collection
                 {
-                    _SslCert
+                    _SslCertificate
                 };
             }
 

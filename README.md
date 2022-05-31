@@ -18,10 +18,11 @@ Since CavemanTcp relies on the consuming application to specify when to read or 
 
 As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; unfortunately .NET Standard does not offer this support, so it is not present for apps using CavemanTcp targeted to .NET Standard.
 
-## New in v1.3.4
+## New in v1.3
 
 - Package fixes around timeouts, disconnections, and documentation
-- Special thanks to @LeaT113!
+- Constructors accepting ```X509Certificate2``` instead of PFX files and passwords
+- Special thanks to @LeaT113 and @samisil
  
 ## Examples
 

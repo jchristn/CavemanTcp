@@ -46,12 +46,13 @@
             </summary>
             <param name="ipPort">The IP:port of the server.</param> 
         </member>
-        <member name="M:CavemanTcp.CavemanTcpClient.#ctor(System.String,System.Int32)">
+        <member name="M:CavemanTcp.CavemanTcpClient.#ctor(System.String,System.Int32,System.Security.Cryptography.X509Certificates.X509Certificate2)">
             <summary>
             Instantiates the TCP client without SSL.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
             </summary>
             <param name="serverIpOrHostname">The server IP address or hostname.</param>
             <param name="port">The TCP port on which to connect.</param>
+            <param name="certificate">SSL certificate.</param>
         </member>
         <member name="M:CavemanTcp.CavemanTcpClient.#ctor(System.String,System.Boolean,System.String,System.String)">
             <summary>
@@ -372,12 +373,13 @@
             </summary>
             <param name="ipPort">The IP:port of the server.</param> 
         </member>
-        <member name="M:CavemanTcp.CavemanTcpServer.#ctor(System.String,System.Int32)">
+        <member name="M:CavemanTcp.CavemanTcpServer.#ctor(System.String,System.Int32,System.Security.Cryptography.X509Certificates.X509Certificate2)">
             <summary>
             Instantiates the TCP server without SSL.  Set the ClientConnected, ClientDisconnected, and DataReceived callbacks.  Once set, use Start() to begin listening for connections.
             </summary>
             <param name="listenerIp">The listener IP address or hostname.</param>
             <param name="port">The TCP port on which to listen.</param> 
+            <param name="certificate">SSL certificate.</param>
         </member>
         <member name="M:CavemanTcp.CavemanTcpServer.#ctor(System.String,System.Boolean,System.String,System.String)">
             <summary>
