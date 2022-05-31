@@ -284,7 +284,7 @@ namespace CavemanTcp
                         _SslStream = new SslStream(_NetworkStream, false);
                     }
 
-                    _SslStream.AuthenticateAsClient(_ServerIp, _SslCertCollection, Common.GetSslProtocols(), !_Settings.AcceptInvalidCertificates);
+                    _SslStream.AuthenticateAsClient(_ServerIp, _SslCertCollection, Common.GetSslProtocol, !_Settings.AcceptInvalidCertificates);
 
                     if (!_SslStream.IsEncrypted)
                     {

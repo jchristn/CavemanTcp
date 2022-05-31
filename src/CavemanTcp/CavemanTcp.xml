@@ -600,6 +600,21 @@
             </summary>
             <param name="disposing">Dispose of resources.</param>
         </member>
+        <member name="T:CavemanTcp.CavemanTcpServerCallbacks">
+            <summary>
+            CavemanTcp server callbacks.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpServerCallbacks.AuthorizeConnection">
+            <summary>
+            Callback to invoke when a connection is received to permit or deny the connection.
+            </summary>
+        </member>
+        <member name="M:CavemanTcp.CavemanTcpServerCallbacks.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
         <member name="T:CavemanTcp.CavemanTcpServerEvents">
             <summary>
             CavemanTcp server events.
@@ -706,6 +721,21 @@
             The IP address and port number of the connected client socket.
             </summary>
         </member>
+        <member name="T:CavemanTcp.ClientDeclinedEventArgs">
+            <summary>
+            Arguments for situations where client connections are declined.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.ClientDeclinedEventArgs.IpPort">
+            <summary>
+            The IP address and port number of the disconnected client socket.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.ClientDeclinedEventArgs.Reason">
+            <summary>
+            The reason for the disconnection.
+            </summary>
+        </member>
         <member name="T:CavemanTcp.ClientDisconnectedEventArgs">
             <summary>
             Arguments for client disconnection events.
@@ -739,6 +769,11 @@
         <member name="F:CavemanTcp.DisconnectReason.Timeout">
             <summary>
             Client connection timed out; server did not receive data within the timeout window.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.DisconnectReason.ConnectionDeclined">
+            <summary>
+            The connection was declined.
             </summary>
         </member>
         <member name="T:CavemanTcp.ExceptionEventArgs">

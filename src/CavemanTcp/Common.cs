@@ -16,15 +16,20 @@ namespace CavemanTcp
 {
     internal static class Common
     {
-
-        internal static SslProtocols GetSslProtocols()
+        internal static SslProtocols GetSslProtocol
         {
-            SslProtocols protocols = SslProtocols.Tls12;
+            get
+            {
+                SslProtocols protocols = SslProtocols.Tls12;
 
 #if NET5_0_OR_GREATER || NETCOREAPP3_1_OR_GREATER
-            protocols |= SslProtocols.Tls13;
+
+                protocols |= SslProtocols.Tls13;
+
 #endif
-            return protocols;
+
+                return protocols;
+            }
         }
 
         internal static byte[] StreamToBytes(Stream input)
