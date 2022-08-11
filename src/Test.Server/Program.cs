@@ -169,6 +169,7 @@ namespace Test.Server
             _Server = new CavemanTcpServer("0.0.0.0:8000");
             _Server.Logger = Logger;
             _Server.Settings.MonitorClientConnections = true;
+            // _Server.Settings.MaxConnections = 1;
 
             _Server.Events.ClientConnected += (s, e) =>
             {

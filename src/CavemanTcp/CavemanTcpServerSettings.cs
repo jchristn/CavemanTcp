@@ -42,11 +42,63 @@ namespace CavemanTcp
         /// </summary>
         public bool MutuallyAuthenticate = false;
 
+        /// <summary>
+        /// Maximum number of connections the server will accept.
+        /// Default is 4096.  Value must be greater than zero.
+        /// </summary>
+        public int MaxConnections
+        {
+            get
+            {
+                return _MaxConnections;
+            }
+            set
+            {
+                if (value < 1) throw new ArgumentException("Max connections must be greater than zero.");
+                _MaxConnections = value;
+            }
+        }
+
+        /// <summary>
+        /// The list of permitted IP addresses from which connections can be received.
+        /// </summary>
+        public List<string> PermittedIPs
+        {
+            get
+            {
+                return _PermittedIPs;
+            }
+            set
+            {
+                if (value == null) _PermittedIPs = new List<string>();
+                else _PermittedIPs = value;
+            }
+        }
+
+        /// <summary>
+        /// The list of blocked IP addresses from which connections will be declined.
+        /// </summary>
+        public List<string> BlockedIPs
+        {
+            get
+            {
+                return _BlockedIPs;
+            }
+            set
+            {
+                if (value == null) _BlockedIPs = new List<string>();
+                else _BlockedIPs = value;
+            }
+        }
+
         #endregion
 
         #region Private-Members
 
         private int _StreamBufferSize = 65536;
+        private int _MaxConnections = 4096;
+        private List<string> _PermittedIPs = new List<string>();
+        private List<string> _BlockedIPs = new List<string>();
 
         #endregion
 
@@ -59,6 +111,14 @@ namespace CavemanTcp
         {
 
         }
+
+        #endregion
+
+        #region Public-Methods
+
+        #endregion
+
+        #region Private-Methods
 
         #endregion
     }

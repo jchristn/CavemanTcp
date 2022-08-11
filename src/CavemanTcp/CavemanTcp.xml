@@ -667,6 +667,22 @@
             Enable or disable mutual authentication of SSL client and server.
             </summary>
         </member>
+        <member name="P:CavemanTcp.CavemanTcpServerSettings.MaxConnections">
+            <summary>
+            Maximum number of connections the server will accept.
+            Default is 4096.  Value must be greater than zero.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpServerSettings.PermittedIPs">
+            <summary>
+            The list of permitted IP addresses from which connections can be received.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpServerSettings.BlockedIPs">
+            <summary>
+            The list of blocked IP addresses from which connections will be declined.
+            </summary>
+        </member>
         <member name="M:CavemanTcp.CavemanTcpServerSettings.#ctor">
             <summary>
             Instantiate the object.

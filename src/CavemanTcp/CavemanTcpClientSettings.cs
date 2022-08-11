@@ -78,5 +78,13 @@ namespace CavemanTcp
         }
 
         #endregion
+
+        #region Public-Methods
+
+        #endregion
+
+        #region Private-Methods
+
+        #endregion
     }
 }

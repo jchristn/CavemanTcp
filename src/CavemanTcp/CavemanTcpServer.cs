@@ -890,9 +890,44 @@ namespace CavemanTcp
             {
                 ClientMetadata client = null;
 
+                #region Check-for-Maximum-Connections
+
+                if (!_IsListening && (_Clients.Count >= _Settings.MaxConnections))
+                {
+                    Task.Delay(100).Wait();
+                    continue;
+                }
+                else if (!_IsListening)
+                {
+                    _Listener.Start();
+                    _IsListening = true;
+                }
+
+                #endregion
+
                 try
                 {
                     TcpClient tcpClient = await _Listener.AcceptTcpClientAsync().ConfigureAwait(false);
+                    string clientIpPort = tcpClient.Client.RemoteEndPoint.ToString();
+
+                    string clientIp = null;
+                    int clientPort = 0;
+                    Common.ParseIpPort(clientIpPort, out clientIp, out clientPort);
+
+                    if (_Settings.PermittedIPs.Count > 0 && !_Settings.PermittedIPs.Contains(clientIp))
+                    {
+                        Logger?.Invoke($"{_Header}rejecting connection from {clientIp} (not permitted)");
+                        tcpClient.Close();
+                        continue;
+                    }
+
+                    if (_Settings.BlockedIPs.Count > 0 && _Settings.BlockedIPs.Contains(clientIp))
+                    {
+                        Logger?.Invoke($"{_Header}rejecting connection from {clientIp} (blocked)");
+                        tcpClient.Close();
+                        continue;
+                    }
+
                     if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives(tcpClient);
                     client = new ClientMetadata(tcpClient);
                     CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, client.Token);
@@ -900,6 +935,17 @@ namespace CavemanTcp
                     var _ = HandleClientConnection(client, linkedCts.Token)
                         .ContinueWith(x => linkedCts.Dispose())
                         .ConfigureAwait(false);
+
+                    #region Check-for-Maximum-Connections
+
+                    if (_Clients.Count >= _Settings.MaxConnections)
+                    {
+                        Logger?.Invoke($"{_Header}maximum connections {_Settings.MaxConnections} met (currently {_Clients.Count} connections), pausing");
+                        _IsListening = false;
+                        _Listener.Stop();
+                    }
+
+                    #endregion
                 }
                 catch (TaskCanceledException)
                 {
@@ -919,7 +965,7 @@ namespace CavemanTcp
                 }
                 catch (Exception e)
                 {
-                    Logger?.Invoke(_Header + "exception while awaiting connections: " + e.ToString());
+                    Logger?.Invoke($"{_Header}exception while awaiting connections: {e.ToString()}");
                     _Events.HandleExceptionEncountered(this, e);
                     continue;
                 }
