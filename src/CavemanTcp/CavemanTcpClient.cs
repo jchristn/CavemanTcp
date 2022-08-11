@@ -312,7 +312,7 @@ namespace CavemanTcp
             }
             catch (Exception e)
             {
-                Logger?.Invoke(_Header + "exception while connecting to " + _ServerIp + ":" + _ServerPort + Environment.NewLine + SerializationHelper.SerializeJson(e, true));
+                Logger?.Invoke(_Header + "exception while connecting to " + _ServerIp + ":" + _ServerPort + ": " + e.Message);
                 _Events.HandleExceptionEncountered(this, e);
                 throw;
             }

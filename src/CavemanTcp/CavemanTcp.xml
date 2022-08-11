@@ -804,11 +804,6 @@
             Exception.
             </summary>
         </member>
-        <member name="P:CavemanTcp.ExceptionEventArgs.Json">
-            <summary>
-            JSON representation of the exception.
-            </summary>
-        </member>
         <member name="T:CavemanTcp.ReadResult">
             <summary>
             Result of a read operation.

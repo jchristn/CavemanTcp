@@ -93,7 +93,7 @@ namespace CavemanTcp
             }
             catch (Exception e)
             {
-                logger?.Invoke("Event handler exception in " + handler + ": " + Environment.NewLine + SerializationHelper.SerializeJson(e, true));
+                logger?.Invoke("Event handler exception in " + handler + ": " + e.Message);
             }
         }
 

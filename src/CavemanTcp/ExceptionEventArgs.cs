@@ -14,17 +14,11 @@ namespace CavemanTcp
             if (e == null) throw new ArgumentNullException(nameof(e));
 
             Exception = e;
-            if (Exception != null) Json = SerializationHelper.SerializeJson(e, true);
         }
 
         /// <summary>
         /// Exception.
         /// </summary>
         public Exception Exception { get; } = null;
-
-        /// <summary>
-        /// JSON representation of the exception.
-        /// </summary>
-        public string Json { get; } = null;
     }
 }
