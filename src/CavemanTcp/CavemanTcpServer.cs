@@ -799,6 +799,8 @@ namespace CavemanTcp
 
         private void EnableKeepalives()
         {
+            // issues with definitions: https://github.com/dotnet/sdk/issues/14540
+
             try
             {
 #if (NETCOREAPP3_0 || NETCOREAPP3_1 || NET5_0)
@@ -829,9 +831,13 @@ namespace CavemanTcp
 
         private void EnableKeepalives(TcpClient client)
         {
+            // issues with definitions: https://github.com/dotnet/sdk/issues/14540
+
             try
             {
-#if (NETCOREAPP3_0 || NETCOREAPP3_1 || NET5_0)
+#if NETCOREAPP3_1_OR_GREATER || NET6_0_OR_GREATER
+
+                // NETCOREAPP3_1_OR_GREATER catches .NET 5.0
 
                 client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
                 client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, _Keepalive.TcpKeepAliveTime);
