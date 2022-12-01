@@ -105,8 +105,8 @@ wr = await client.SendWithTimeoutAsync([ms], "[Data]");
 ReadResult rr = null;
 rr = client.Read([count]);
 rr = client.ReadWithTimeout([ms], count);
-rr = client server.ReadAsync([count]);
-rr = client server.ReadWithTimeoutAsync([ms], [count]);
+rr = await client.ReadAsync([count]);
+rr = await client.ReadWithTimeoutAsync([ms], [count]);
 ```
 
 ## WriteResult and ReadResult
