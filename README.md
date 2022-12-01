@@ -18,12 +18,15 @@ Since CavemanTcp relies on the consuming application to specify when to read or 
 
 As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; unfortunately .NET Standard does not offer this support, so it is not present for apps using CavemanTcp targeted to .NET Standard.
 
-## New in v1.3
+## New in v2.0.x
 
-- Package fixes around timeouts, disconnections, and documentation
-- Constructors accepting ```X509Certificate2``` instead of PFX files and passwords
-- Special thanks to @LeaT113 and @samisil
- 
+- Breaking changes
+- Clients now referenced by ```Guid``` instead of ```string ipPort```
+- ```ListClients``` now returns an enumeration of ```ClientMetadata```
+- ```Send``` and ```Read``` methods using ```string ipPort``` are marked obsolete
+- ```AddClient``` moved closer to connection acceptance
+- Target ```net7.0``` and ```net472```
+
 ## Examples
 
 ### Server Example
@@ -37,35 +40,36 @@ server.Logger = Logger;
 // Set callbacks
 server.Events.ClientConnected += (s, e) => 
 { 
-    Console.WriteLine("Client " + e.IpPort + " connected to server");
+    Console.WriteLine("Client " + e.Client.ToString() + " connected to server");
 };
 server.Events.ClientDisconnected += (s, e) => 
 { 
-    Console.WriteLine("Client " + e.IpPort + " disconnected from server"); 
+    Console.WriteLine("Client " + e.Client.ToString() + " disconnected from server"); 
 }; 
 
 // Start server
 server.Start(); 
 
-// Send [Data] to client at [IP:Port] 
+// Send [Data] to client at [guid] 
+Guid guid = Guid.Parse("00001111-2222-3333-4444-555566667777");
 WriteResult wr = null;
-wr = server.Send("[IP:Port]", "[Data]");
-wr = server.SendWithTimeout([ms], "[IP:Port]", "[Data]");
-wr = await server.SendAsync("[IP:Port]", "[Data]");
-wr = await server.SendWithTimeoutAsync([ms], "[IP:Port]", "[Data]");
+wr = server.Send(guid, "[Data]");
+wr = server.SendWithTimeout([ms], guid, "[Data]");
+wr = await server.SendAsync(guid, "[Data]");
+wr = await server.SendWithTimeoutAsync([ms], guid, "[Data]");
 
-// Receive [count] bytes of data from client at [IP:Port]
+// Receive [count] bytes of data from client at [guid]
 ReadResult rr = null;
-rr = server.Read("[IP:Port]", [count]);
-rr = server.ReadWithTimeout([ms], "[IP:Port]", count);
-rr = await server.ReadAsync("[IP:Port]", [count]);
-rr = await server.ReadWithTimeoutAsync([ms], "[IP:Port]", [count]);
+rr = server.Read(guid, [count]);
+rr = server.ReadWithTimeout([ms], guid, count);
+rr = await server.ReadAsync(guid, [count]);
+rr = await server.ReadWithTimeoutAsync([ms], guid, [count]);
 
 // List clients
-List<string> clients = server.GetClients().ToList();
+List<ClientMetadata> clients = server.GetClients().ToList();
 
 // Disconnect a client
-server.DisconnectClient("[IP:Port]");
+server.DisconnectClient(guid);
 ```
 
 ### Client Example
@@ -165,6 +169,7 @@ server.Keepalive.TcpKeepAliveRetryCount = 5;    // number of failed keepalive pr
 
 Some important notes about TCP keepalives:
 
+- This capability is enabled by the underlying framework and operating system, not provided by this library
 - Keepalives only work in .NET Core and .NET Framework
 - Keepalives can be enabled on either client or server, but generally only work on server (being investigated)
 - ```Keepalive.TcpKeepAliveRetryCount``` is only applicable to .NET Core; for .NET Framework, this value is forced to 10

@@ -2,12 +2,21 @@
 
 ## Current Version
 
+v2.0.0
+
+- Breaking changes
+- Clients now referenced by ```Guid``` instead of ```string ipPort```
+- ```ListClients``` now returns an enumeration of ```ClientMetadata```
+- ```Send``` and ```Read``` methods using ```string ipPort``` are marked obsolete
+- ```AddClient``` moved closer to connection acceptance
+- Target ```net7.0``` and ```net472```
+
+## Previous Versions
+
 v1.3.3
 
 - Breaking change, disabled TCP keepalives by default due to incompatibility in certain platforms
  
-## Previous Versions
-
 v1.3.2
 
 - .NET 5.0 support

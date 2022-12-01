@@ -10,7 +10,6 @@ namespace Test.SslServer
     {
         static bool _RunForever = true;
         static CavemanTcpServer _Server = null;
-        static string _LastClient = null;
 
         static void Main(string[] args)
         {
@@ -32,11 +31,11 @@ namespace Test.SslServer
                     Console.WriteLine("   cls                          Clear the screen");
                     Console.WriteLine("   q                            Quit the program");
                     Console.WriteLine("   list                         List connected clients");
-                    Console.WriteLine("   send [ipport] [data]         Send data to a specific client");
-                    Console.WriteLine("   sendt [ms] [ipport] [data]   Send data to a specific client with specified timeout");
-                    Console.WriteLine("   read [ipport] [count]        Read [count] bytes from a specific client");
-                    Console.WriteLine("   readt [ms] [ipport] [count]  Read [count] bytes from a specific client with specified timeout");
-                    Console.WriteLine("   kick [ipport]                Disconnect a specific client from the server");
+                    Console.WriteLine("   send [guid] [data]           Send data to a specific client");
+                    Console.WriteLine("   sendt [ms] [guid] [data]     Send data to a specific client with specified timeout");
+                    Console.WriteLine("   read [guid] [count]          Read [count] bytes from a specific client");
+                    Console.WriteLine("   readt [ms] [guid] [count]    Read [count] bytes from a specific client with specified timeout");
+                    Console.WriteLine("   kick [guid]                  Disconnect a specific client from the server");
                     Console.WriteLine("   dispose                      Dispose of the server");
                     Console.WriteLine("   start                        Start the server (running: " + (_Server != null ? _Server.IsListening.ToString() : "false") + ")");
                     Console.WriteLine("   stats                        Retrieve statistics");
@@ -58,13 +57,13 @@ namespace Test.SslServer
 
                 if (userInput.Equals("list"))
                 {
-                    List<string> clients = _Server.GetClients().ToList();
+                    List<ClientMetadata> clients = _Server.GetClients().ToList();
                     if (clients != null)
                     {
                         Console.WriteLine("Clients: " + clients.Count);
-                        foreach (string curr in clients)
+                        foreach (ClientMetadata curr in clients)
                         {
-                            Console.WriteLine("  " + curr);
+                            Console.WriteLine("  " + curr.ToString());
                         }
                     }
                     else
@@ -76,11 +75,10 @@ namespace Test.SslServer
                 if (userInput.StartsWith("send "))
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
-                    string ipPort = parts[1];
-                    if (ipPort.Equals("last")) ipPort = _LastClient;
+                    Guid guid = Guid.Parse(parts[1]);
                     string data = parts[2];
 
-                    WriteResult wr = _Server.Send(ipPort, data);
+                    WriteResult wr = _Server.Send(guid, data);
                     if (wr.Status == WriteResultStatus.Success)
                         Console.WriteLine("Success");
                     else
@@ -91,11 +89,10 @@ namespace Test.SslServer
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 4, StringSplitOptions.RemoveEmptyEntries);
                     int timeoutMs = Convert.ToInt32(parts[1]);
-                    string ipPort = parts[2];
-                    if (ipPort.Equals("last")) ipPort = _LastClient;
+                    Guid guid = Guid.Parse(parts[2]);
                     string data = parts[3];
 
-                    WriteResult wr = _Server.SendWithTimeout(timeoutMs, ipPort, data);
+                    WriteResult wr = _Server.SendWithTimeout(timeoutMs, guid, data);
                     if (wr.Status == WriteResultStatus.Success)
                         Console.WriteLine("Success");
                     else
@@ -105,11 +102,10 @@ namespace Test.SslServer
                 if (userInput.StartsWith("read "))
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
-                    string ipPort = parts[1];
-                    if (ipPort.Equals("last")) ipPort = _LastClient;
+                    Guid guid = Guid.Parse(parts[1]);
                     int count = Convert.ToInt32(parts[2]);
 
-                    ReadResult rr = _Server.Read(ipPort, count);
+                    ReadResult rr = _Server.Read(guid, count);
                     if (rr.Status == ReadResultStatus.Success)
                         Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
                     else
@@ -120,11 +116,10 @@ namespace Test.SslServer
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 4, StringSplitOptions.RemoveEmptyEntries);
                     int timeoutMs = Convert.ToInt32(parts[1]);
-                    string ipPort = parts[2];
-                    if (ipPort.Equals("last")) ipPort = _LastClient;
+                    Guid guid = Guid.Parse(parts[2]);
                     int count = Convert.ToInt32(parts[3]);
 
-                    ReadResult rr = _Server.ReadWithTimeout(timeoutMs, ipPort, count);
+                    ReadResult rr = _Server.ReadWithTimeout(timeoutMs, guid, count);
                     if (rr.Status == ReadResultStatus.Success)
                         Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
                     else
@@ -134,9 +129,9 @@ namespace Test.SslServer
                 if (userInput.StartsWith("kick "))
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
-                    string ipPort = parts[1];
+                    Guid guid = Guid.Parse(parts[1]);
 
-                    _Server.DisconnectClient(ipPort);
+                    _Server.DisconnectClient(guid);
                 }
 
                 if (userInput.Equals("dispose"))
@@ -164,13 +159,12 @@ namespace Test.SslServer
 
             _Server.Events.ClientConnected += (s, e) =>
             {
-                Console.WriteLine("Client " + e.IpPort + " connected to server");
-                _LastClient = e.IpPort;
+                Console.WriteLine("Client " + e.Client.ToString() + " connected to server");
             };
 
             _Server.Events.ClientDisconnected += (s, e) =>
             {
-                Console.WriteLine("Client " + e.IpPort + " disconnected from server");
+                Console.WriteLine("Client " + e.Client.ToString() + " disconnected from server");
             };
         }
 

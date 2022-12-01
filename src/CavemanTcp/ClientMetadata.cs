@@ -7,8 +7,38 @@ using System.Threading.Tasks;
 
 namespace CavemanTcp
 {
-    internal class ClientMetadata : IDisposable
+    /// <summary>
+    /// Client metadata.
+    /// </summary>
+    public class ClientMetadata : IDisposable
     {
+        #region Public-Members
+
+        /// <summary>
+        /// Globally-unique identifier for the connection.
+        /// </summary>
+        public Guid Guid { get; } = Guid.NewGuid();
+
+        /// <summary>
+        /// IP:port.
+        /// </summary>
+        public string IpPort
+        {
+            get { return _IpPort; }
+        }
+
+        /// <summary>
+        /// Name for the client, managed by the developer (you).
+        /// </summary>
+        public string Name { get; set; } = null;
+
+        /// <summary>
+        /// Metadata for the client, managed by the developer (you).
+        /// </summary>
+        public object Metadata { get; set; } = null;
+
+        #endregion
+
         #region Internal-Members
 
         internal System.Net.Sockets.TcpClient Client
@@ -25,11 +55,6 @@ namespace CavemanTcp
         {
             get { return _SslStream; }
             set { _SslStream = value; }
-        }
-
-        internal string IpPort
-        {
-            get { return _IpPort; }
         }
 
         internal SemaphoreSlim ReadSemaphore
@@ -77,6 +102,9 @@ namespace CavemanTcp
 
         #region Public-Methods
 
+        /// <summary>
+        /// Tear down the object and dispose of resources.
+        /// </summary>
         public void Dispose()
         {
             if (TokenSource != null)
@@ -123,6 +151,19 @@ namespace CavemanTcp
 
                 }
             }
+        }
+
+        /// <summary>
+        /// Human-readable representation of the object.
+        /// </summary>
+        /// <returns></returns>
+        public override string ToString()
+        {
+            string ret = "[";
+            ret += Guid.ToString() + "|" + IpPort;
+            if (!String.IsNullOrEmpty(Name)) ret += "|" + Name;
+            ret += "]";
+            return ret;
         }
 
         #endregion

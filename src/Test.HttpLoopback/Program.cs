@@ -46,9 +46,9 @@ namespace Test.HttpLoopback
         {
             try
             {
-                string data = await ReadFully(args.IpPort);
-                await _Server.SendAsync(args.IpPort, _HttpResponse);
-                _Server.DisconnectClient(args.IpPort);
+                string data = await ReadFully(args.Client.Guid);
+                await _Server.SendAsync(args.Client.Guid, _HttpResponse);
+                _Server.DisconnectClient(args.Client.Guid);
             }
             catch (Exception e)
             {
@@ -56,11 +56,11 @@ namespace Test.HttpLoopback
             }
         }
 
-        static async Task<string> ReadFully(string ipPort)
+        static async Task<string> ReadFully(Guid guid)
         {
             StringBuilder sb = new StringBuilder();
              
-            ReadResult readInitial = await _Server.ReadAsync(ipPort, 18);
+            ReadResult readInitial = await _Server.ReadAsync(guid, 18);
             if (readInitial.Status != ReadResultStatus.Success)
             { 
                 throw new IOException("Unable to read data");
@@ -76,7 +76,7 @@ namespace Test.HttpLoopback
                 }
                 else
                 { 
-                    ReadResult readSubsequent = await _Server.ReadAsync(ipPort, 1);
+                    ReadResult readSubsequent = await _Server.ReadAsync(guid, 1);
                     if (readSubsequent.Status != ReadResultStatus.Success)
                     { 
                         throw new IOException("Unable to read data");

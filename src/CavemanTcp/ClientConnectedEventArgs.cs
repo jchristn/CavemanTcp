@@ -9,14 +9,35 @@ namespace CavemanTcp
     /// </summary>
     public class ClientConnectedEventArgs : EventArgs
     {
-        internal ClientConnectedEventArgs(string ipPort)
-        {
-            IpPort = ipPort;
-        }
+        #region Public-Members
+
 
         /// <summary>
-        /// The IP address and port number of the connected client socket.
+        /// Client metadata.
         /// </summary>
-        public string IpPort { get; }
+        public ClientMetadata Client { get; }
+
+        #endregion
+
+        #region Private-Members
+
+        #endregion
+
+        #region Constructors-and-Factories
+
+        internal ClientConnectedEventArgs(ClientMetadata client)
+        {
+            Client = client;
+        }
+
+        #endregion
+
+        #region Public-Methods
+
+        #endregion
+
+        #region Private-Methods
+
+        #endregion
     }
 }

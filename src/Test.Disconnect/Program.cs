@@ -12,7 +12,7 @@ namespace Test.Disconnect
         static CancellationToken _Token;
 
         static CavemanTcpServer _Server = null;
-        static string _LastIpPort = null;
+        static Guid _LastGuid = Guid.Empty;
 
         static CavemanTcpClient _Client = null;
         static bool _RunForever = true;
@@ -87,14 +87,14 @@ namespace Test.Disconnect
             _Server = new CavemanTcpServer("127.0.0.01", 9000, false, null, null);
             _Server.Events.ClientConnected += (s, e) => 
             {
-                _LastIpPort = e.IpPort;
-                Console.WriteLine("[Server] " + e.IpPort + " connected");
+                _LastGuid = e.Client.Guid;
+                Console.WriteLine("[Server] " + e.Client.ToString() + " connected");
             };
 
             _Server.Events.ClientDisconnected += (s, e) =>
             {
-                _LastIpPort = null;
-                Console.WriteLine("[Server] " + e.IpPort + " disconnected");
+                _LastGuid = Guid.Empty;
+                Console.WriteLine("[Server] " + e.Client.ToString() + " disconnected");
             };
 
             _Server.Logger = Console.WriteLine;
@@ -105,17 +105,17 @@ namespace Test.Disconnect
 
             while (true)
             {
-                if (String.IsNullOrEmpty(_LastIpPort))
+                if (_LastGuid == Guid.Empty)
                 {
                     Task.Delay(100).Wait();
                     continue;
                 }
 
-                ReadResult rr = _Server.Read(_LastIpPort, 10);
+                ReadResult rr = _Server.Read(_LastGuid, 10);
                 if (rr.Status == ReadResultStatus.Success)
                 {
                     Console.WriteLine("[Server] received " + Encoding.UTF8.GetString(rr.Data));
-                    WriteResult wr = _Server.Send(_LastIpPort, "serverecho");
+                    WriteResult wr = _Server.Send(_LastGuid, "serverecho");
                 }
             }
         }

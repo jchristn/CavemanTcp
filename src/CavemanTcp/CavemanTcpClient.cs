@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -343,6 +344,8 @@ namespace CavemanTcp
             Dispose();
         }
 
+        #region Send
+
         /// <summary>
         /// Send data to the server.
         /// </summary>
@@ -350,13 +353,9 @@ namespace CavemanTcp
         /// <returns>WriteResult.</returns>
         public WriteResult Send(string data)
         {
-            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
-            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
-            MemoryStream ms = new MemoryStream();
-            byte[] bytes = Encoding.UTF8.GetBytes(data);
-            ms.Write(bytes, 0, bytes.Length);
-            ms.Seek(0, SeekOrigin.Begin);
-            return SendWithoutTimeoutInternal(bytes.Length, ms);
+            byte[] bytes = Array.Empty<byte>();
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return Send(bytes);
         }
 
         /// <summary>
@@ -366,12 +365,11 @@ namespace CavemanTcp
         /// <returns>WriteResult.</returns>
         public WriteResult Send(byte[] data)
         {
-            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
             if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
             MemoryStream ms = new MemoryStream(); 
             ms.Write(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return SendWithoutTimeoutInternal(data.Length, ms); 
+            return Send(data.Length, ms); 
         }
 
         /// <summary>
@@ -389,6 +387,10 @@ namespace CavemanTcp
             return SendWithoutTimeoutInternal(contentLength, stream);
         }
 
+        #endregion
+
+        #region SendWithTimeout
+
         /// <summary>
         /// Send data to the server.
         /// </summary>
@@ -397,14 +399,9 @@ namespace CavemanTcp
         /// <returns>WriteResult.</returns>
         public WriteResult SendWithTimeout(int timeoutMs, string data)
         {
-            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
-            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
-            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
-            MemoryStream ms = new MemoryStream();
-            byte[] bytes = Encoding.UTF8.GetBytes(data);
-            ms.Write(bytes, 0, bytes.Length);
-            ms.Seek(0, SeekOrigin.Begin);
-            return SendWithTimeoutInternal(timeoutMs, bytes.Length, ms);
+            byte[] bytes = Array.Empty<byte>();
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return SendWithTimeout(timeoutMs, bytes);
         }
 
         /// <summary>
@@ -415,13 +412,11 @@ namespace CavemanTcp
         /// <returns>WriteResult.</returns>
         public WriteResult SendWithTimeout(int timeoutMs, byte[] data)
         {
-            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
-            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
-            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            if (data == null || data.Length < 1) data = Array.Empty<byte>();
             MemoryStream ms = new MemoryStream();
             ms.Write(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return SendWithTimeoutInternal(timeoutMs, data.Length, ms);
+            return SendWithTimeout(timeoutMs, data.Length, ms);
         }
 
         /// <summary>
@@ -441,6 +436,10 @@ namespace CavemanTcp
             return SendWithTimeoutInternal(timeoutMs, contentLength, stream);
         }
 
+        #endregion
+
+        #region SendAsync
+
         /// <summary>
         /// Send data to the server.
         /// </summary>
@@ -449,14 +448,9 @@ namespace CavemanTcp
         /// <returns>WriteResult.</returns>
         public async Task<WriteResult> SendAsync(string data, CancellationToken token = default)
         {
-            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
-            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
-            if (token == default(CancellationToken)) token = _Token;
-            MemoryStream ms = new MemoryStream();
-            byte[] bytes = Encoding.UTF8.GetBytes(data);
-            await ms.WriteAsync(bytes, 0, bytes.Length, token).ConfigureAwait(false);
-            ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithoutTimeoutInternalAsync(bytes.Length, ms, token).ConfigureAwait(false);
+            byte[] bytes = Array.Empty<byte>();
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return await SendAsync(bytes, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -467,13 +461,11 @@ namespace CavemanTcp
         /// <returns>WriteResult.</returns>
         public async Task<WriteResult> SendAsync(byte[] data, CancellationToken token = default)
         {
-            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
-            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
-            if (token == default(CancellationToken)) token = _Token;
+            if (data == null || data.Length < 1) data = Array.Empty<byte>();
             MemoryStream ms = new MemoryStream();
             await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithoutTimeoutInternalAsync(data.Length, ms, token).ConfigureAwait(false);
+            return await SendAsync(data.Length, ms, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -493,6 +485,10 @@ namespace CavemanTcp
             return await SendWithoutTimeoutInternalAsync(contentLength, stream, token).ConfigureAwait(false);
         }
 
+        #endregion
+
+        #region SendWithTimeoutAsync
+
         /// <summary>
         /// Send data to the server.
         /// </summary>
@@ -502,15 +498,9 @@ namespace CavemanTcp
         /// <returns>WriteResult.</returns>
         public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, string data, CancellationToken token = default)
         {
-            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
-            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
-            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
-            if (token == default(CancellationToken)) token = _Token;
-            MemoryStream ms = new MemoryStream();
-            byte[] bytes = Encoding.UTF8.GetBytes(data);
-            await ms.WriteAsync(bytes, 0, bytes.Length, token).ConfigureAwait(false);
-            ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithTimeoutInternalAsync(timeoutMs, bytes.Length, ms, token).ConfigureAwait(false);
+            byte[] bytes = Array.Empty<byte>();
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return await SendWithTimeoutAsync(timeoutMs, bytes, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -522,14 +512,11 @@ namespace CavemanTcp
         /// <returns>WriteResult.</returns>
         public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, byte[] data, CancellationToken token = default)
         {
-            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
-            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
-            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
-            if (token == default(CancellationToken)) token = _Token;
+            if (data == null || data.Length < 1) data = Array.Empty<byte>();
             MemoryStream ms = new MemoryStream();
             await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithTimeoutInternalAsync(timeoutMs, data.Length, ms, token).ConfigureAwait(false);
+            return await SendWithTimeoutAsync(timeoutMs, data.Length, ms, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -551,8 +538,12 @@ namespace CavemanTcp
             return await SendWithTimeoutInternalAsync(timeoutMs, contentLength, stream, token).ConfigureAwait(false);
         }
 
+        #endregion
+
+        #region Read
+
         /// <summary>
-        /// Read string from the server.
+        /// Read from the server.
         /// </summary>
         /// <param name="count">The number of bytes to read.</param>
         /// <returns>ReadResult.</returns>
@@ -565,8 +556,12 @@ namespace CavemanTcp
             return ReadWithTimeoutInternal(-1, count); 
         }
 
+        #endregion
+
+        #region ReadWithTimeout
+
         /// <summary>
-        /// Read string from the server.
+        /// Read from the server.
         /// </summary>
         /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
         /// <param name="count">The number of bytes to read.</param>
@@ -581,8 +576,12 @@ namespace CavemanTcp
             return ReadWithTimeoutInternal(timeoutMs, count);
         }
 
+        #endregion
+
+        #region ReadAsync
+
         /// <summary>
-        /// Read string from the server.
+        /// Read from the server.
         /// </summary>
         /// <param name="count">The number of bytes to read.</param>
         /// <param name="token">Cancellation token for canceling the request.</param>
@@ -597,8 +596,12 @@ namespace CavemanTcp
             return await ReadWithoutTimeoutInternalAsync(count, token).ConfigureAwait(false);
         }
 
+        #endregion
+
+        #region ReadWithTimeoutAsync
+
         /// <summary>
-        /// Read string from the server.
+        /// Read from the server.
         /// </summary>
         /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
         /// <param name="count">The number of bytes to read.</param>
@@ -615,6 +618,10 @@ namespace CavemanTcp
             return await ReadWithTimeoutInternalAsync(timeoutMs, count, token).ConfigureAwait(false);
         }
 
+        #endregion
+
+        #region Other
+
         /// <summary>
         /// Get direct access to the underlying client stream.
         /// </summary>
@@ -625,6 +632,8 @@ namespace CavemanTcp
             if (!_Ssl) return _NetworkStream; 
             else return _SslStream; 
         }
+
+        #endregion
 
         #endregion
 

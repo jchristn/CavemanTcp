@@ -9,20 +9,40 @@ namespace CavemanTcp
     /// </summary>
     public class ClientDisconnectedEventArgs : EventArgs
     {
-        internal ClientDisconnectedEventArgs(string ipPort, DisconnectReason reason)
-        {
-            IpPort = ipPort;
-            Reason = reason;
-        }
+        #region Public-Members
 
         /// <summary>
-        /// The IP address and port number of the disconnected client socket.
+        /// Client metadata.
         /// </summary>
-        public string IpPort { get; }
+        public ClientMetadata Client { get; }
 
         /// <summary>
         /// The reason for the disconnection.
         /// </summary>
         public DisconnectReason Reason { get; }
+
+        #endregion
+
+        #region Private-Members
+
+        #endregion
+
+        #region Constructors-and-Factories
+
+        internal ClientDisconnectedEventArgs(ClientMetadata client, DisconnectReason reason)
+        {
+            Client = client;
+            Reason = reason;
+        }
+
+        #endregion
+
+        #region Public-Methods
+
+        #endregion
+
+        #region Private-Methods
+
+        #endregion
     }
 }

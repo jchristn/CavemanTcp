@@ -10,7 +10,6 @@ namespace Test.ServerAsync
     {
         static bool _RunForever = true;
         static CavemanTcpServer _Server = null;
-        static string _LastClient = null;
 
         static void Main(string[] args)
         {
@@ -34,11 +33,11 @@ namespace Test.ServerAsync
                     Console.WriteLine("   start                        Start listening for connections (listening: " + (_Server != null ? _Server.IsListening.ToString() : "false") + ")");
                     Console.WriteLine("   stop                         Stop listening for connections  (listening: " + (_Server != null ? _Server.IsListening.ToString() : "false") + ")");
                     Console.WriteLine("   list                         List connected clients");
-                    Console.WriteLine("   send [ipport] [data]         Send data to a specific client");
-                    Console.WriteLine("   sendt [ms] [ipport] [data]   Send data to a specific client with specified timeout");
-                    Console.WriteLine("   read [ipport] [count]        Read [count] bytes from a specific client");
-                    Console.WriteLine("   readt [ms] [ipport] [count]  Read [count] bytes from a specific client with specified timeout");
-                    Console.WriteLine("   kick [ipport]                Disconnect a specific client from the server");
+                    Console.WriteLine("   send [guid] [data]           Send data to a specific client");
+                    Console.WriteLine("   sendt [ms] [guid] [data]     Send data to a specific client with specified timeout");
+                    Console.WriteLine("   read [guid] [count]          Read [count] bytes from a specific client");
+                    Console.WriteLine("   readt [ms] [guid] [count]    Read [count] bytes from a specific client with specified timeout");
+                    Console.WriteLine("   kick [guid]                  Disconnect a specific client from the server");
                     Console.WriteLine("   dispose                      Dispose of the server");
                     Console.WriteLine("   stats                        Retrieve statistics");
                     Console.WriteLine("");
@@ -69,13 +68,13 @@ namespace Test.ServerAsync
 
                 if (userInput.Equals("list"))
                 {
-                    List<string> clients = _Server.GetClients().ToList();
+                    List<ClientMetadata> clients = _Server.GetClients().ToList();
                     if (clients != null)
                     {
                         Console.WriteLine("Clients: " + clients.Count);
-                        foreach (string curr in clients)
+                        foreach (ClientMetadata curr in clients)
                         {
-                            Console.WriteLine("  " + curr);
+                            Console.WriteLine("  " + curr.ToString());
                         }
                     }
                     else
@@ -87,11 +86,10 @@ namespace Test.ServerAsync
                 if (userInput.StartsWith("send "))
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
-                    string ipPort = parts[1];
-                    if (ipPort.Equals("last")) ipPort = _LastClient;
+                    Guid guid = Guid.Parse(parts[1]);
                     string data = parts[2];
 
-                    WriteResult wr = _Server.SendAsync(ipPort, data).Result;
+                    WriteResult wr = _Server.SendAsync(guid, data).Result;
                     if (wr.Status == WriteResultStatus.Success)
                         Console.WriteLine("Success");
                     else
@@ -102,11 +100,10 @@ namespace Test.ServerAsync
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 4, StringSplitOptions.RemoveEmptyEntries);
                     int timeoutMs = Convert.ToInt32(parts[1]);
-                    string ipPort = parts[2];
-                    if (ipPort.Equals("last")) ipPort = _LastClient;
+                    Guid guid = Guid.Parse(parts[2]);
                     string data = parts[3];
 
-                    WriteResult wr = _Server.SendWithTimeoutAsync(timeoutMs, ipPort, data).Result;
+                    WriteResult wr = _Server.SendWithTimeoutAsync(timeoutMs, guid , data).Result;
                     if (wr.Status == WriteResultStatus.Success)
                         Console.WriteLine("Success");
                     else
@@ -116,11 +113,10 @@ namespace Test.ServerAsync
                 if (userInput.StartsWith("read "))
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
-                    string ipPort = parts[1];
-                    if (ipPort.Equals("last")) ipPort = _LastClient;
+                    Guid guid = Guid.Parse(parts[1]);
                     int count = Convert.ToInt32(parts[2]);
 
-                    ReadResult rr = _Server.ReadAsync(ipPort, count).Result;
+                    ReadResult rr = _Server.ReadAsync(guid, count).Result;
                     if (rr.Status == ReadResultStatus.Success)
                         Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
                     else
@@ -131,11 +127,10 @@ namespace Test.ServerAsync
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 4, StringSplitOptions.RemoveEmptyEntries);
                     int timeoutMs = Convert.ToInt32(parts[1]);
-                    string ipPort = parts[2];
-                    if (ipPort.Equals("last")) ipPort = _LastClient;
+                    Guid guid = Guid.Parse(parts[2]);
                     int count = Convert.ToInt32(parts[3]);
 
-                    ReadResult rr = _Server.ReadWithTimeoutAsync(timeoutMs, ipPort, count).Result;
+                    ReadResult rr = _Server.ReadWithTimeoutAsync(timeoutMs, guid, count).Result;
                     if (rr.Status == ReadResultStatus.Success)
                         Console.WriteLine("Retrieved " + rr.BytesRead + " bytes: " + Encoding.UTF8.GetString(rr.Data));
                     else
@@ -145,9 +140,9 @@ namespace Test.ServerAsync
                 if (userInput.StartsWith("kick "))
                 {
                     string[] parts = userInput.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
-                    string ipPort = parts[1];
+                    Guid guid = Guid.Parse(parts[1]);
 
-                    _Server.DisconnectClient(ipPort);
+                    _Server.DisconnectClient(guid);
                 }
 
                 if (userInput.Equals("dispose"))
@@ -169,13 +164,12 @@ namespace Test.ServerAsync
 
             _Server.Events.ClientConnected += (s, e) =>
             {
-                Console.WriteLine("Client " + e.IpPort + " connected to server");
-                _LastClient = e.IpPort;
+                Console.WriteLine("Client " + e.Client.ToString() + " connected to server");
             };
 
             _Server.Events.ClientDisconnected += (s, e) =>
             {
-                Console.WriteLine("Client " + e.IpPort + " disconnected from server");
+                Console.WriteLine("Client " + e.Client.ToString() + " disconnected from server");
             };
         }
 

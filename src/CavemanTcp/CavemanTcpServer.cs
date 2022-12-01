@@ -124,7 +124,7 @@ namespace CavemanTcp
         private Task _AcceptConnections = null;
 
         private readonly object _ClientsLock = new object();
-        private Dictionary<string, ClientMetadata> _Clients = new Dictionary<string, ClientMetadata>();
+        private Dictionary<Guid, ClientMetadata> _Clients = new Dictionary<Guid, ClientMetadata>();
 
         #endregion
 
@@ -413,326 +413,659 @@ namespace CavemanTcp
         }
 
         /// <summary>
-        /// Retrieve a list of client IP:port connected to the server.
+        /// Retrieve a list of client metadata for clients connected to the server.
         /// </summary>
-        /// <returns>IEnumerable of strings, each containing client IP:port.</returns>
-        public IEnumerable<string> GetClients()
+        /// <returns>IEnumerable of ClientMetadata.</returns>
+        public IEnumerable<ClientMetadata> GetClients()
         {
             return GetClientList();
         }
 
-        /// <summary>
-        /// Determines if a client is connected by its IP:port.
-        /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
-        /// <returns>True if connected.</returns>
-        public bool IsConnected(string ipPort)
-        {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort)); 
-            return ClientExists(ipPort);
-        }
+        #region Send
 
         /// <summary>
         /// Send data to the specified client by IP:port.
         /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="ipPort">The client IP:port.</param>
         /// <param name="data">String containing data to send.</param>
         /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
         public WriteResult Send(string ipPort, string data)
         {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
-            MemoryStream ms = new MemoryStream();
-            byte[] bytes = Encoding.UTF8.GetBytes(data);
-            ms.Write(bytes, 0, bytes.Length);
-            ms.Seek(0, SeekOrigin.Begin);
-            return SendWithoutTimeoutInternal(ipPort, bytes.Length, ms);
+            byte[] bytes = Array.Empty<byte>();
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return Send(ipPort, bytes);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by GUID.
+        /// </summary>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="data">String containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        public WriteResult Send(Guid guid, string data)
+        {
+            byte[] bytes = Array.Empty<byte>();
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return Send(guid, bytes);
         }
 
         /// <summary>
         /// Send data to the specified client by IP:port.
         /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="ipPort">The client IP:port.</param>
         /// <param name="data">Byte array containing data to send.</param>
         /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
         public WriteResult Send(string ipPort, byte[] data)
         {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            if (data == null || data.Length < 1) data = Array.Empty<byte>();
             MemoryStream ms = new MemoryStream();
             ms.Write(data, 0, data.Length);
             ms.Seek(0, SeekOrigin.Begin);
-            return SendWithoutTimeoutInternal(ipPort, data.Length, ms);
+            return Send(ipPort, data.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by GUID.
+        /// </summary>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="data">Byte array containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        public WriteResult Send(Guid guid, byte[] data)
+        {
+            if (data == null || data.Length < 1) data = Array.Empty<byte>();
+            MemoryStream ms = new MemoryStream();
+            ms.Write(data, 0, data.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            return Send(guid, data.Length, ms);
         }
 
         /// <summary>
         /// Send data to the specified client by IP:port.
         /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="ipPort">The client IP:port.</param>
         /// <param name="contentLength">Number of bytes to send from the stream.</param>
         /// <param name="stream">Stream containing data to send.</param>
         /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
         public WriteResult Send(string ipPort, long contentLength, Stream stream)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            return SendWithoutTimeoutInternal(ipPort, contentLength, stream);
+            return SendWithoutTimeoutInternal(guid, contentLength, stream);
         }
 
         /// <summary>
-        /// Send data to the specified client by IP:port.
+        /// Send data to the specified client by GUID.
         /// </summary>
-        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
-        /// <param name="ipPort">The client IP:port string.</param>
-        /// <param name="data">String containing data to send.</param>
-        /// <returns>WriteResult.</returns>
-        public WriteResult SendWithTimeout(int timeoutMs, string ipPort, string data)
-        {
-            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
-            MemoryStream ms = new MemoryStream();
-            byte[] bytes = Encoding.UTF8.GetBytes(data);
-            ms.Write(bytes, 0, bytes.Length);
-            ms.Seek(0, SeekOrigin.Begin);
-            return SendWithTimeoutInternal(timeoutMs, ipPort, bytes.Length, ms);
-        }
-
-        /// <summary>
-        /// Send data to the specified client by IP:port.
-        /// </summary>
-        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
-        /// <param name="ipPort">The client IP:port string.</param>
-        /// <param name="data">Byte array containing data to send.</param>
-        /// <returns>WriteResult.</returns>
-        public WriteResult SendWithTimeout(int timeoutMs, string ipPort, byte[] data)
-        {
-            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
-            MemoryStream ms = new MemoryStream();
-            ms.Write(data, 0, data.Length);
-            ms.Seek(0, SeekOrigin.Begin);
-            return SendWithTimeoutInternal(timeoutMs, ipPort, data.Length, ms);
-        }
-
-        /// <summary>
-        /// Send data to the specified client by IP:port.
-        /// </summary>
-        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="guid">Client GUID.</param>
         /// <param name="contentLength">Number of bytes to send from the stream.</param>
         /// <param name="stream">Stream containing data to send.</param>
         /// <returns>WriteResult.</returns>
+        public WriteResult Send(Guid guid, long contentLength, Stream stream)
+        {
+            if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
+            return SendWithoutTimeoutInternal(guid, contentLength, stream);
+        }
+
+        #endregion
+
+        #region SendWithTimeout
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port.</param>
+        /// <param name="data">String containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
+        public WriteResult SendWithTimeout(int timeoutMs, string ipPort, string data)
+        {
+            byte[] bytes = Array.Empty<byte>();
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return SendWithTimeout(timeoutMs, ipPort, bytes);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by GUID.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="data">String containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        public WriteResult SendWithTimeout(int timeoutMs, Guid guid, string data)
+        {
+            byte[] bytes = Array.Empty<byte>();
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return SendWithTimeout(timeoutMs, guid, bytes);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port.</param>
+        /// <param name="data">Byte array containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
+        public WriteResult SendWithTimeout(int timeoutMs, string ipPort, byte[] data)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (data == null || data.Length < 1) data = Array.Empty<byte>();
+            MemoryStream ms = new MemoryStream();
+            ms.Write(data, 0, data.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            return SendWithTimeout(timeoutMs, ipPort, data.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by GUID.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="data">Byte array containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        public WriteResult SendWithTimeout(int timeoutMs, Guid guid, byte[] data)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (data == null || data.Length < 1) data = Array.Empty<byte>();
+            MemoryStream ms = new MemoryStream();
+            ms.Write(data, 0, data.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            return SendWithTimeout(timeoutMs, guid, data.Length, ms);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port.</param>
+        /// <param name="contentLength">Number of bytes to send from the stream.</param>
+        /// <param name="stream">Stream containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
         public WriteResult SendWithTimeout(int timeoutMs, string ipPort, long contentLength, Stream stream)
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            return SendWithTimeoutInternal(timeoutMs, ipPort, contentLength, stream);
+            return SendWithTimeoutInternal(timeoutMs, guid, contentLength, stream);
         }
+
+        /// <summary>
+        /// Send data to the specified client by GUID.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="contentLength">Number of bytes to send from the stream.</param>
+        /// <param name="stream">Stream containing data to send.</param>
+        /// <returns>WriteResult.</returns>
+        public WriteResult SendWithTimeout(int timeoutMs, Guid guid, long contentLength, Stream stream)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
+            return SendWithTimeoutInternal(timeoutMs, guid, contentLength, stream);
+        }
+
+        #endregion
+
+        #region SendAsync
 
         /// <summary>
         /// Send data to the specified client by IP:port.
         /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="ipPort">The client IP:port.</param>
         /// <param name="data">String containing data to send.</param>
         /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
         public async Task<WriteResult> SendAsync(string ipPort, string data, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
-            if (token == default(CancellationToken)) token = _Token;
-            MemoryStream ms = new MemoryStream();
-            byte[] bytes = Encoding.UTF8.GetBytes(data);
-            await ms.WriteAsync(bytes, 0, bytes.Length, token).ConfigureAwait(false);
-            ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithoutTimeoutInternalAsync(ipPort, bytes.Length, ms, token).ConfigureAwait(false);
+            byte[] bytes = Array.Empty<byte>();
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return await SendAsync(ipPort, bytes, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by GUID.
+        /// </summary>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="data">String containing data to send.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendAsync(Guid guid, string data, CancellationToken token = default)
+        {
+            byte[] bytes = Array.Empty<byte>();
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return await SendAsync(guid, bytes, token).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Send data to the specified client by IP:port.
         /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="ipPort">The client IP:port.</param>
         /// <param name="data">Byte array containing data to send.</param>
         /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
         public async Task<WriteResult> SendAsync(string ipPort, byte[] data, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
-            if (token == default(CancellationToken)) token = _Token;
+            if (data == null || data.Length < 1) data = Array.Empty<byte>();
             MemoryStream ms = new MemoryStream();
             await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
             ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithoutTimeoutInternalAsync(ipPort, data.Length, ms, token).ConfigureAwait(false);
+            return await SendAsync(ipPort, data.Length, ms, token).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Send data to the specified client by IP:port.
         /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="data">Byte array containing data to send.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendAsync(Guid guid, byte[] data, CancellationToken token = default)
+        {
+            if (data == null || data.Length < 1) data = Array.Empty<byte>();
+            MemoryStream ms = new MemoryStream();
+            await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
+            ms.Seek(0, SeekOrigin.Begin);
+            return await SendAsync(guid, data.Length, ms, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port.</param>
         /// <param name="contentLength">Number of bytes to send from the stream.</param>
         /// <param name="stream">Stream containing data to send.</param>
         /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
         public async Task<WriteResult> SendAsync(string ipPort, long contentLength, Stream stream, CancellationToken token = default)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
             if (token == default(CancellationToken)) token = _Token;
-            return await SendWithoutTimeoutInternalAsync(ipPort, contentLength, stream, token).ConfigureAwait(false);
+            return await SendWithoutTimeoutInternalAsync(guid, contentLength, stream, token).ConfigureAwait(false);
         }
 
         /// <summary>
-        /// Send data to the specified client by IP:port.
+        /// Send data to the specified client by GUID.
         /// </summary>
-        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
-        /// <param name="ipPort">The client IP:port string.</param>
-        /// <param name="data">String containing data to send.</param>
-        /// <param name="token">Cancellation token for canceling the request.</param>>
-        /// <returns>WriteResult.</returns>
-        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, string ipPort, string data, CancellationToken token = default)
-        {
-            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (String.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
-            if (token == default(CancellationToken)) token = _Token;
-            MemoryStream ms = new MemoryStream();
-            byte[] bytes = Encoding.UTF8.GetBytes(data);
-            await ms.WriteAsync(bytes, 0, bytes.Length, token).ConfigureAwait(false);
-            ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithTimeoutInternalAsync(timeoutMs, ipPort, bytes.Length, ms, token).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Send data to the specified client by IP:port.
-        /// </summary>
-        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
-        /// <param name="ipPort">The client IP:port string.</param>
-        /// <param name="data">Byte array containing data to send.</param>
-        /// <param name="token">Cancellation token for canceling the request.</param>
-        /// <returns>WriteResult.</returns>
-        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, string ipPort, byte[] data, CancellationToken token = default)
-        {
-            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
-            if (token == default(CancellationToken)) token = _Token;
-            MemoryStream ms = new MemoryStream();
-            await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
-            ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithTimeoutInternalAsync(timeoutMs, ipPort, data.Length, ms, token).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Send data to the specified client by IP:port.
-        /// </summary>
-        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="guid">Client GUID.</param>
         /// <param name="contentLength">Number of bytes to send from the stream.</param>
         /// <param name="stream">Stream containing data to send.</param>
         /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendAsync(Guid guid, long contentLength, Stream stream, CancellationToken token = default)
+        {
+            if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
+            if (token == default(CancellationToken)) token = _Token;
+            return await SendWithoutTimeoutInternalAsync(guid, contentLength, stream, token).ConfigureAwait(false);
+        }
+
+        #endregion
+
+        #region SendWithTimeoutAsync
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port.</param>
+        /// <param name="data">String containing data to send.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>>
+        /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
+        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, string ipPort, string data, CancellationToken token = default)
+        {
+            byte[] bytes = Array.Empty<byte>();
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return await SendWithTimeoutAsync(timeoutMs, ipPort, bytes, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by GUID.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="data">String containing data to send.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>>
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, Guid guid, string data, CancellationToken token = default)
+        {
+            byte[] bytes = Array.Empty<byte>();
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (!String.IsNullOrEmpty(data)) bytes = Encoding.UTF8.GetBytes(data);
+            return await SendWithTimeoutAsync(timeoutMs, guid, bytes, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port.</param>
+        /// <param name="data">Byte array containing data to send.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
+        /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
+        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, string ipPort, byte[] data, CancellationToken token = default)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (data == null || data.Length < 1) data = Array.Empty<byte>();
+            MemoryStream ms = new MemoryStream();
+            await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
+            ms.Seek(0, SeekOrigin.Begin);
+            return await SendWithTimeoutAsync(timeoutMs, ipPort, data.Length, ms, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by GUID.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="data">Byte array containing data to send.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, Guid guid, byte[] data, CancellationToken token = default)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (data == null || data.Length < 1) data = Array.Empty<byte>();
+            MemoryStream ms = new MemoryStream();
+            await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
+            ms.Seek(0, SeekOrigin.Begin);
+            return await SendWithTimeoutAsync(timeoutMs, guid, data.Length, ms, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Send data to the specified client by IP:port.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port.</param>
+        /// <param name="contentLength">Number of bytes to send from the stream.</param>
+        /// <param name="stream">Stream containing data to send.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
+        /// <returns>WriteResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
         public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, string ipPort, long contentLength, Stream stream, CancellationToken token = default)
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
             if (token == default(CancellationToken)) token = _Token;
-            return await SendWithTimeoutInternalAsync(timeoutMs, ipPort, contentLength, stream, token).ConfigureAwait(false);
+            return await SendWithTimeoutInternalAsync(timeoutMs, guid, contentLength, stream, token).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// Send data to the specified client by GUID.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="contentLength">Number of bytes to send from the stream.</param>
+        /// <param name="stream">Stream containing data to send.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
+        /// <returns>WriteResult.</returns>
+        public async Task<WriteResult> SendWithTimeoutAsync(int timeoutMs, Guid guid, long contentLength, Stream stream, CancellationToken token = default)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
+            if (token == default(CancellationToken)) token = _Token;
+            return await SendWithTimeoutInternalAsync(timeoutMs, guid, contentLength, stream, token).ConfigureAwait(false);
+        }
+
+        #endregion
 
         /// <summary>
         /// Disconnects the specified client.
         /// </summary>
         /// <param name="ipPort">IP:port of the client.</param>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
         public void DisconnectClient(string ipPort)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            RemoveAndDisposeClient(ipPort);
-            _Events.HandleClientDisconnected(this, new ClientDisconnectedEventArgs(ipPort, DisconnectReason.Kicked));
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return;
+            DisconnectClient(guid);
+        }
+
+        /// <summary>
+        /// Disconnects the specified client.
+        /// </summary>
+        /// <param name="guid">Client GUID.</param>
+        public void DisconnectClient(Guid guid)
+        {
+            ClientMetadata client = GetClient(guid);
+            if (client != null)
+            {
+                RemoveAndDisposeClient(guid);
+                _Events.HandleClientDisconnected(this, new ClientDisconnectedEventArgs(client, DisconnectReason.Kicked));
+            }
+        }
+
+        #region Read
+
+        /// <summary>
+        /// Read data from a given client.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>ReadResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
+        public ReadResult Read(string ipPort, int count)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            return ReadWithoutTimeoutInternal(guid, (long)count);
         }
 
         /// <summary>
         /// Read data from a given client.
         /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="guid">Client GUID.</param>
         /// <param name="count">The number of bytes to read.</param>
         /// <returns>ReadResult.</returns>
-        public ReadResult Read(string ipPort, int count)
+        public ReadResult Read(Guid guid, int count)
         {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            return ReadWithoutTimeoutInternal(ipPort, (long)count);
+            return ReadWithoutTimeoutInternal(guid, (long)count);
         }
+
+        #endregion
+
+        #region ReadWithTimeout
 
         /// <summary>
         /// Read data from a given client.
         /// </summary>
         /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="ipPort">The client IP:port.</param>
         /// <param name="count">The number of bytes to read.</param>
         /// <returns>ReadResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
         public ReadResult ReadWithTimeout(int timeoutMs, string ipPort, int count)
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            return ReadWithTimeoutInternal(timeoutMs, ipPort, (long)count);
-        }
-
-        /// <summary>
-        /// Read data from a given client.
-        /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
-        /// <param name="count">The number of bytes to read.</param>
-        /// <param name="token">Cancellation token for canceling the request.</param>
-        /// <returns>ReadResult.</returns>
-        public async Task<ReadResult> ReadAsync(string ipPort, int count, CancellationToken token = default)
-        {
-            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            if (token == default(CancellationToken)) token = _Token;
-            return await ReadWithoutTimeoutInternalAsync(ipPort, (long)count, token).ConfigureAwait(false);
+            return ReadWithTimeoutInternal(timeoutMs, guid, (long)count);
         }
 
         /// <summary>
         /// Read data from a given client.
         /// </summary>
         /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <returns>ReadResult.</returns>
+        public ReadResult ReadWithTimeout(int timeoutMs, Guid guid, int count)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            return ReadWithTimeoutInternal(timeoutMs, guid, (long)count);
+        }
+
+        #endregion
+
+        #region ReadAsync
+
+        /// <summary>
+        /// Read data from a given client.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port.</param>
         /// <param name="count">The number of bytes to read.</param>
         /// <param name="token">Cancellation token for canceling the request.</param>
         /// <returns>ReadResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
+        public async Task<ReadResult> ReadAsync(string ipPort, int count, CancellationToken token = default)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (token == default(CancellationToken)) token = _Token;
+            return await ReadWithoutTimeoutInternalAsync(guid, (long)count, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Read data from a given client.
+        /// </summary>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
+        /// <returns>ReadResult.</returns>
+        public async Task<ReadResult> ReadAsync(Guid guid, int count, CancellationToken token = default)
+        {
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (token == default(CancellationToken)) token = _Token;
+            return await ReadWithoutTimeoutInternalAsync(guid, (long)count, token).ConfigureAwait(false);
+        }
+
+        #endregion
+
+        #region ReadWithTimeoutAsync
+
+        /// <summary>
+        /// Read data from a given client.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="ipPort">The client IP:port.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
+        /// <returns>ReadResult.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
         public async Task<ReadResult> ReadWithTimeoutAsync(int timeoutMs, string ipPort, int count, CancellationToken token = default)
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
             if (token == default(CancellationToken)) token = _Token;
-            return await ReadWithTimeoutInternalAsync(timeoutMs, ipPort, (long)count, token).ConfigureAwait(false);
+            return await ReadWithTimeoutInternalAsync(timeoutMs, guid, (long)count, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Read data from a given client.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="guid">Client GUID.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
+        /// <returns>ReadResult.</returns>
+        public async Task<ReadResult> ReadWithTimeoutAsync(int timeoutMs, Guid guid, int count, CancellationToken token = default)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (token == default(CancellationToken)) token = _Token;
+            return await ReadWithTimeoutInternalAsync(timeoutMs, guid, (long)count, token).ConfigureAwait(false);
+        }
+
+        #endregion
+
+        #region Other
+
+        /// <summary>
+        /// Get direct access to the underlying client stream.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port.</param>
+        /// <returns>Stream.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
+        public Stream GetStream(string ipPort)
+        {
+            if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            return GetClientStream(guid);
         }
 
         /// <summary>
         /// Get direct access to the underlying client stream.
         /// </summary>
-        /// <param name="ipPort">The client IP:port string.</param>
+        /// <param name="guid">Client GUID.</param>
         /// <returns>Stream.</returns>
-        public Stream GetStream(string ipPort)
+        public Stream GetStream(Guid guid)
+        {
+            return GetClientStream(guid);
+        }
+
+        /// <summary>
+        /// Determines if a client is connected by its IP:port.
+        /// </summary>
+        /// <param name="ipPort">The client IP:port.</param>
+        /// <returns>True if connected.</returns>
+        [Obsolete("Please migrate to methods that use a Guid to identify the recipient.")]
+        public bool IsConnected(string ipPort)
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
-            return GetClientStream(ipPort);
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return false;
+            return true; // ClientGuidFromIpPort already checks the dictionary
         }
+
+        /// <summary>
+        /// Determines if a client is connected by its GUID.
+        /// </summary>
+        /// <param name="guid">The client GUID.</param>
+        /// <returns>True if connected.</returns>
+        public bool IsConnected(Guid guid)
+        {
+            return ClientExists(guid);
+        }
+
+        #endregion
 
         #endregion
 
@@ -754,10 +1087,10 @@ namespace CavemanTcp
                     {
                         if (_Clients != null && _Clients.Count > 0)
                         {
-                            foreach (KeyValuePair<string, ClientMetadata> curr in _Clients)
+                            foreach (KeyValuePair<Guid, ClientMetadata> curr in _Clients)
                             {
                                 curr.Value.Dispose();
-                                Logger?.Invoke(_Header + "disconnected client: " + curr.Key);
+                                Logger?.Invoke(_Header + "disconnected client " + curr.Value.ToString());
                             }
                         }
                     }
@@ -794,38 +1127,6 @@ namespace CavemanTcp
                 _IsListening = false;
 
                 Logger?.Invoke(_Header + "disposed");
-            }
-        }
-
-        private void EnableKeepalives()
-        {
-            // issues with definitions: https://github.com/dotnet/sdk/issues/14540
-
-            try
-            {
-#if (NETCOREAPP3_0 || NETCOREAPP3_1 || NET5_0)
-
-                _Listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-                _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, _Keepalive.TcpKeepAliveTime);
-                _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, _Keepalive.TcpKeepAliveInterval);
-                _Listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, _Keepalive.TcpKeepAliveRetryCount);
-
-#elif NETFRAMEWORK
-
-                byte[] keepAlive = new byte[12];
-                Buffer.BlockCopy(BitConverter.GetBytes((uint)1), 0, keepAlive, 0, 4);
-                Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveTime), 0, keepAlive, 4, 4); 
-                Buffer.BlockCopy(BitConverter.GetBytes((uint)_Keepalive.TcpKeepAliveInterval), 0, keepAlive, 8, 4); 
-                _Listener.Server.IOControl(IOControlCode.KeepAliveValues, keepAlive, null);
-
-#elif NETSTANDARD
-
-#endif
-            }
-            catch (Exception)
-            {
-                Logger?.Invoke(_Header + "keepalives not supported on this platform, disabled");
-                _Keepalive.EnableTcpKeepAlives = false;
             }
         }
 
@@ -916,6 +1217,11 @@ namespace CavemanTcp
                     TcpClient tcpClient = await _Listener.AcceptTcpClientAsync().ConfigureAwait(false);
                     string clientIpPort = tcpClient.Client.RemoteEndPoint.ToString();
 
+                    client = new ClientMetadata(tcpClient);
+                    CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, client.Token);
+
+                    AddClient(client);
+
                     string clientIp = null;
                     int clientPort = 0;
                     Common.ParseIpPort(clientIpPort, out clientIp, out clientPort);
@@ -935,9 +1241,7 @@ namespace CavemanTcp
                     }
 
                     if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives(tcpClient);
-                    client = new ClientMetadata(tcpClient);
-                    CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, client.Token);
-
+                    
                     var _ = HandleClientConnection(client, linkedCts.Token)
                         .ContinueWith(x => linkedCts.Dispose())
                         .ConfigureAwait(false);
@@ -956,13 +1260,13 @@ namespace CavemanTcp
                 catch (TaskCanceledException)
                 {
                     _IsListening = false;
-                    if (client != null) client.Dispose();
+                    if (client != null) RemoveAndDisposeClient(client.Guid);
                     return;
                 }
                 catch (OperationCanceledException)
                 {
                     _IsListening = false;
-                    if (client != null) client.Dispose();
+                    if (client != null) RemoveAndDisposeClient(client.Guid);
                     return;
                 }
                 catch (ObjectDisposedException)
@@ -998,20 +1302,18 @@ namespace CavemanTcp
                     bool success = await StartTls(client).ConfigureAwait(false);
                     if (!success)
                     {
-                        client.Dispose();
+                        RemoveAndDisposeClient(client.Guid);
                         return;
                     }
                 }
 
-                AddClient(client.IpPort, client);
-
                 if (_Settings.MonitorClientConnections)
                 {
-                    Logger?.Invoke(_Header + "starting connection monitor for: " + client.IpPort);
+                    Logger?.Invoke(_Header + "starting connection monitor for: " + client.ToString());
                     Task unawaited = Task.Run(() => ConnectionMonitor(client, token), token);
                 }
 
-                _Events.HandleClientConnected(this, new ClientConnectedEventArgs(client.IpPort));
+                _Events.HandleClientConnected(this, new ClientConnectedEventArgs(client));
             }
             catch (TaskCanceledException)
             {
@@ -1074,8 +1376,6 @@ namespace CavemanTcp
 
         private async Task ConnectionMonitor(ClientMetadata client, CancellationToken token)
         {
-            string ipPort = client.IpPort;
-
             try
             {
                 while (client != null && !client.Token.IsCancellationRequested)
@@ -1095,13 +1395,13 @@ namespace CavemanTcp
             }
             catch (Exception e)
             {
-                Logger?.Invoke(_Header + "client " + ipPort + " monitor exception:" + Environment.NewLine + e.ToString());
+                Logger?.Invoke(_Header + "client " + client.ToString() + " monitor exception:" + Environment.NewLine + e.ToString());
                 _Events.HandleExceptionEncountered(this, e);
             }
             finally
             {
-                Logger?.Invoke(_Header + "client " + ipPort + " disconnected");
-                DisconnectClient(ipPort);
+                Logger?.Invoke(_Header + "client " + client.ToString() + " disconnected");
+                DisconnectClient(client.Guid);
             }
         }
 
@@ -1110,9 +1410,9 @@ namespace CavemanTcp
         #region Send
 
         // No cancellation token
-        private WriteResult SendWithoutTimeoutInternal(string ipPort, long contentLength, Stream stream)
+        private WriteResult SendWithoutTimeoutInternal(Guid guid, long contentLength, Stream stream)
         {
-            ClientMetadata client = GetClient(ipPort);
+            ClientMetadata client = GetClient(guid);
             if (client == null) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
 
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
@@ -1177,9 +1477,9 @@ namespace CavemanTcp
         }
 
         // Timeout cancellation token
-        private WriteResult SendWithTimeoutInternal(int timeoutMs, string ipPort, long contentLength, Stream stream)
+        private WriteResult SendWithTimeoutInternal(int timeoutMs, Guid guid, long contentLength, Stream stream)
         {
-            ClientMetadata client = GetClient(ipPort);
+            ClientMetadata client = GetClient(guid);
             if (client == null) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
 
             var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_TokenSource.Token);
@@ -1264,9 +1564,9 @@ namespace CavemanTcp
         }
 
         // Supplied cancellation token
-        private async Task<WriteResult> SendWithoutTimeoutInternalAsync(string ipPort, long contentLength, Stream stream, CancellationToken token)
+        private async Task<WriteResult> SendWithoutTimeoutInternalAsync(Guid guid, long contentLength, Stream stream, CancellationToken token)
         {
-            ClientMetadata client = GetClient(ipPort);
+            ClientMetadata client = GetClient(guid);
             if (client == null) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
 
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
@@ -1332,9 +1632,9 @@ namespace CavemanTcp
         }
 
         // Supplied cancellation token
-        private async Task<WriteResult> SendWithTimeoutInternalAsync(int timeoutMs, string ipPort, long contentLength, Stream stream, CancellationToken token)
+        private async Task<WriteResult> SendWithTimeoutInternalAsync(int timeoutMs, Guid guid, long contentLength, Stream stream, CancellationToken token)
         {
-            ClientMetadata client = GetClient(ipPort);
+            ClientMetadata client = GetClient(guid);
             if (client == null) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
 
             CancellationTokenSource timeoutCts = new CancellationTokenSource();
@@ -1426,11 +1726,11 @@ namespace CavemanTcp
         #region Read
 
         // No cancellation token
-        private ReadResult ReadWithoutTimeoutInternal(string ipPort, long count)
+        private ReadResult ReadWithoutTimeoutInternal(Guid guid, long count)
         {
             if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
 
-            ClientMetadata client = GetClient(ipPort);
+            ClientMetadata client = GetClient(guid);
             if (client == null) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
              
             ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
@@ -1483,7 +1783,7 @@ namespace CavemanTcp
                 result.Status = ReadResultStatus.Disconnected;
                 result.BytesRead = 0;
                 result.DataStream = null;
-                RemoveAndDisposeClient(ipPort);
+                RemoveAndDisposeClient(guid);
                 return result;
             }
             finally
@@ -1493,11 +1793,11 @@ namespace CavemanTcp
         }
 
         // Timeout cancellation token
-        private ReadResult ReadWithTimeoutInternal(int timeoutMs, string ipPort, long count)
+        private ReadResult ReadWithTimeoutInternal(int timeoutMs, Guid guid, long count)
         {
             if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
 
-            ClientMetadata client = GetClient(ipPort);
+            ClientMetadata client = GetClient(guid);
             if (client == null) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
 
             CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_Token);
@@ -1555,7 +1855,7 @@ namespace CavemanTcp
                     result.Status = ReadResultStatus.Disconnected;
                     result.BytesRead = 0;
                     result.DataStream = null;
-                    RemoveAndDisposeClient(ipPort);
+                    RemoveAndDisposeClient(guid);
                     return result;
                 }
             }, timeoutToken);
@@ -1578,11 +1878,11 @@ namespace CavemanTcp
         }
 
         // Supplied cancellation token
-        private async Task<ReadResult> ReadWithoutTimeoutInternalAsync(string ipPort, long count, CancellationToken token)
+        private async Task<ReadResult> ReadWithoutTimeoutInternalAsync(Guid guid, long count, CancellationToken token)
         {
             if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
 
-            ClientMetadata client = GetClient(ipPort);
+            ClientMetadata client = GetClient(guid);
             if (client == null) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
 
             ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
@@ -1637,7 +1937,7 @@ namespace CavemanTcp
                 result.Status = ReadResultStatus.Disconnected;
                 result.BytesRead = 0;
                 result.DataStream = null;
-                RemoveAndDisposeClient(ipPort);
+                RemoveAndDisposeClient(guid);
                 return result;
             }
             finally
@@ -1647,11 +1947,11 @@ namespace CavemanTcp
         }
 
         // Supplied cancellation token, timeout cancellation token
-        private async Task<ReadResult> ReadWithTimeoutInternalAsync(int timeoutMs, string ipPort, long count, CancellationToken token)
+        private async Task<ReadResult> ReadWithTimeoutInternalAsync(int timeoutMs, Guid guid, long count, CancellationToken token)
         {
             if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
 
-            ClientMetadata client = GetClient(ipPort);
+            ClientMetadata client = GetClient(guid);
             if (client == null) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
 
             CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, token);
@@ -1711,7 +2011,7 @@ namespace CavemanTcp
                     result.Status = ReadResultStatus.Disconnected;
                     result.BytesRead = 0;
                     result.DataStream = null;
-                    RemoveAndDisposeClient(ipPort);
+                    RemoveAndDisposeClient(guid);
                     return result;
                 }
             },
@@ -1739,43 +2039,57 @@ namespace CavemanTcp
 
         #region Client
 
-        private IEnumerable<string> GetClientList()
+        private IEnumerable<ClientMetadata> GetClientList()
         {
             lock (_ClientsLock)
             {
-                return new List<string>(_Clients.Keys);
+                return new List<ClientMetadata>(_Clients.Values);
             }
         }
 
-        private bool ClientExists(string ipPort)
+        private Guid ClientGuidFromIpPort(string ipPort)
         {
             lock (_ClientsLock)
             {
-                return (_Clients.TryGetValue(ipPort, out _));
-            }
-        }
-
-        private void RemoveAndDisposeClient(string ipPort)
-        {
-            lock (_ClientsLock)
-            {
-                if (_Clients.TryGetValue(ipPort, out ClientMetadata client))
+                if (_Clients.Any(p => p.Value.IpPort.Equals(ipPort)))
                 {
-                    client.Dispose();
-                    _Clients.Remove(ipPort);
+                    ClientMetadata md = _Clients.First(p => p.Value.IpPort.Equals(ipPort)).Value;
+                    return md.Guid;
                 }
 
-                Logger?.Invoke(_Header + "removed: " + ipPort);
+                return Guid.Empty;
+            }
+        }
+
+        private bool ClientExists(Guid guid)
+        {
+            lock (_ClientsLock)
+            {
+                return (_Clients.Keys.Contains(guid));
+            }
+        }
+
+        private void RemoveAndDisposeClient(Guid guid)
+        {
+            lock (_ClientsLock)
+            {
+                if (_Clients.TryGetValue(guid, out ClientMetadata client))
+                {
+                    client.Dispose();
+                    _Clients.Remove(guid);
+                }
+
+                Logger?.Invoke(_Header + "removed: " + client.ToString());
             } 
         }
 
-        private Stream GetClientStream(string ipPort)
+        private Stream GetClientStream(Guid guid)
         { 
             lock (_ClientsLock)
             {
-                if (!_Clients.TryGetValue(ipPort, out ClientMetadata client))
+                if (!_Clients.TryGetValue(guid, out ClientMetadata client))
                 {
-                    throw new KeyNotFoundException("Client with IP:port of " + ipPort + " not found.");
+                    throw new KeyNotFoundException("Client with GUID " + guid.ToString() + " not found.");
                 }
 
                 if (!_Ssl) return client.NetworkStream;
@@ -1783,22 +2097,22 @@ namespace CavemanTcp
             } 
         }
 
-        private void AddClient(string ipPort, ClientMetadata client)
+        private void AddClient(ClientMetadata client)
         {
             lock (_ClientsLock)
             {
-                Logger?.Invoke(_Header + "adding client " + client.IpPort);
-                _Clients.Add(client.IpPort, client);
+                Logger?.Invoke(_Header + "adding client " + client.ToString());
+                _Clients.Add(client.Guid, client);
             }
         }
 
-        private ClientMetadata GetClient(string ipPort)
+        private ClientMetadata GetClient(Guid guid)
         {
             lock (_ClientsLock)
             {
-                if (_Clients.TryGetValue(ipPort, out ClientMetadata client))
+                if (_Clients.ContainsKey(guid))
                 {
-                    return client;
+                    return _Clients[guid];
                 }
 
                 return null;
