@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -336,7 +337,7 @@ namespace CavemanTcp
 
             _Header = "[CavemanTcp.Server " + _ListenerIp + ":" + _Port + "] ";
         }
-        
+
         #endregion
 
         #region Public-Methods
@@ -1144,7 +1145,14 @@ namespace CavemanTcp
                 client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
                 client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, _Keepalive.TcpKeepAliveTime);
                 client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, _Keepalive.TcpKeepAliveInterval);
-                client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, _Keepalive.TcpKeepAliveRetryCount);
+
+                // Windows 10 version 1703 or later
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    && Environment.OSVersion.Version >= new Version(10, 0, 15063))
+                {
+                    client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, _Keepalive.TcpKeepAliveRetryCount);
+                }
 
 #elif NETFRAMEWORK
 
@@ -1173,9 +1181,9 @@ namespace CavemanTcp
 
             var state = IPGlobalProperties.GetIPGlobalProperties()
                 .GetActiveTcpConnections()
-                        .FirstOrDefault(x => 
-                            x.LocalEndPoint.Equals(client.Client.LocalEndPoint)
-                            && x.RemoteEndPoint.Equals(client.Client.RemoteEndPoint));
+                    .FirstOrDefault(x =>
+                        x.LocalEndPoint.Equals(client.Client.LocalEndPoint)
+                        && x.RemoteEndPoint.Equals(client.Client.RemoteEndPoint));
 
             if (state == default(TcpConnectionInformation)
                 || state.State == TcpState.Unknown
@@ -1256,7 +1264,7 @@ namespace CavemanTcp
                     }
 
                     if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives(tcpClient);
-                    
+
                     var _ = HandleClientConnection(client, linkedCts.Token)
                         .ContinueWith(x => linkedCts.Dispose())
                         .ConfigureAwait(false);
@@ -1747,7 +1755,7 @@ namespace CavemanTcp
 
             ClientMetadata client = GetClient(guid);
             if (client == null) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
-             
+
             ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
 
             try
@@ -2095,11 +2103,11 @@ namespace CavemanTcp
                 }
 
                 Logger?.Invoke(_Header + "removed: " + client.ToString());
-            } 
+            }
         }
 
         private Stream GetClientStream(Guid guid)
-        { 
+        {
             lock (_ClientsLock)
             {
                 if (!_Clients.TryGetValue(guid, out ClientMetadata client))
@@ -2109,7 +2117,7 @@ namespace CavemanTcp
 
                 if (!_Ssl) return client.NetworkStream;
                 else return client.SslStream;
-            } 
+            }
         }
 
         private void AddClient(ClientMetadata client)
