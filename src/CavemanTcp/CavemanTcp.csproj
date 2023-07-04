@@ -1,82 +1,89 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFrameworks>netcoreapp3.1;netstandard2.0;netstandard2.1;net461;net472;net5.0;net6.0;net7.0</TargetFrameworks>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.0.0</Version>
-    <Authors>Joel Christner</Authors>
-    <Description>CavemanTcp is a simple TCP client and server providing easy integration and full control over network reads and writes, allowing you to build your own state machines with ease.</Description>
-    <Copyright>(c)2022 Joel Christner</Copyright>
-    <PackageLicenseUrl></PackageLicenseUrl>
-    <PackageProjectUrl>https://github.com/jchristn/cavemantcp</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/jchristn/cavemantcp</RepositoryUrl>
-    <RepositoryType>Github</RepositoryType>
-    <PackageTags>tcp messaging socket message sockets api rpc</PackageTags>
-    <PackageReleaseNotes>Add permitted, blocked IPs</PackageReleaseNotes>
-    <PackageId>CavemanTcp</PackageId>
-    <Product>CavemanTcp</Product>
-    <PackageIconUrl></PackageIconUrl>
-    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
-    <PackageIcon>icon.png</PackageIcon>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFrameworks>netstandard2.1;net461;net472;net6.0;net7.0</TargetFrameworks>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<Version>2.0.1</Version>
+		<Authors>Joel Christner</Authors>
+		<Description>CavemanTcp is a simple TCP client and server providing easy integration and full control over network reads and writes, allowing you to build your own state machines with ease.</Description>
+		<Copyright>(c)2022 Joel Christner</Copyright>
+		<PackageLicenseUrl></PackageLicenseUrl>
+		<PackageProjectUrl>https://github.com/jchristn/cavemantcp</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/jchristn/cavemantcp</RepositoryUrl>
+		<RepositoryType>Github</RepositoryType>
+		<PackageTags>tcp messaging socket message sockets api rpc</PackageTags>
+		<PackageReleaseNotes>Add permitted, blocked IPs</PackageReleaseNotes>
+		<PackageId>CavemanTcp</PackageId>
+		<Product>CavemanTcp</Product>
+		<PackageIconUrl></PackageIconUrl>
+		<PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<SignAssembly>True</SignAssembly>
+		<AssemblyOriginatorKeyFile>C:\Code\Misc\CavemanTcp-2.0\cavemantcp.snk</AssemblyOriginatorKeyFile>
+	</PropertyGroup>
 
 
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netcoreapp3.1|AnyCPU'">
-    <DocumentationFile>CavemanTcp.xml</DocumentationFile>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netcoreapp3.1|AnyCPU'">
+		<DocumentationFile>CavemanTcp.xml</DocumentationFile>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netstandard2.0|AnyCPU'">
-    <DocumentationFile>CavemanTcp.xml</DocumentationFile>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netstandard2.0|AnyCPU'">
+		<DocumentationFile>CavemanTcp.xml</DocumentationFile>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net461|AnyCPU'">
-    <DocumentationFile>CavemanTcp.xml</DocumentationFile>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net461|AnyCPU'">
+		<DocumentationFile>CavemanTcp.xml</DocumentationFile>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net5.0|AnyCPU'">
-    <DocumentationFile>CavemanTcp.xml</DocumentationFile>
-  </PropertyGroup>
-
-
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netcoreapp3.1|AnyCPU'">
-    <DocumentationFile>CavemanTcp.xml</DocumentationFile>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.0|AnyCPU'">
-    <DocumentationFile>CavemanTcp.xml</DocumentationFile>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net461|AnyCPU'">
-    <DocumentationFile>CavemanTcp.xml</DocumentationFile>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net5.0|AnyCPU'">
-    <DocumentationFile>CavemanTcp.xml</DocumentationFile>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net5.0|AnyCPU'">
+		<DocumentationFile>CavemanTcp.xml</DocumentationFile>
+	</PropertyGroup>
 
 
-  <ItemGroup>
-    <None Include="assets\icon.png">
-      <Pack>True</Pack>
-      <PackagePath></PackagePath>
-    </None>
-    <None Include="LICENSE.md">
-      <Pack>True</Pack>
-      <PackagePath></PackagePath>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
- 
-  <ItemGroup>
-    <None Update="assets\icon.ico">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="assets\icon.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="CavemanTcp.xml">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netcoreapp3.1|AnyCPU'">
+		<DocumentationFile>CavemanTcp.xml</DocumentationFile>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.0|AnyCPU'">
+		<DocumentationFile>CavemanTcp.xml</DocumentationFile>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net461|AnyCPU'">
+		<DocumentationFile>CavemanTcp.xml</DocumentationFile>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net5.0|AnyCPU'">
+		<DocumentationFile>CavemanTcp.xml</DocumentationFile>
+	</PropertyGroup>
+
+
+	<ItemGroup>
+		<None Include="..\..\README.md">
+		  <Pack>True</Pack>
+		  <PackagePath>\</PackagePath>
+		</None>
+		<None Include="assets\icon.png">
+			<Pack>True</Pack>
+			<PackagePath></PackagePath>
+		</None>
+		<None Include="LICENSE.md">
+			<Pack>True</Pack>
+			<PackagePath></PackagePath>
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="assets\icon.ico">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="assets\icon.png">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="CavemanTcp.xml">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
 
 </Project>

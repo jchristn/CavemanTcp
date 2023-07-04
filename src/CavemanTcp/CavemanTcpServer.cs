@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
@@ -1169,7 +1170,23 @@ namespace CavemanTcp
         private bool IsClientConnected(System.Net.Sockets.TcpClient client)
         {
             if (client == null) return false;
-            if (!client.Connected) return false;
+
+            var state = IPGlobalProperties.GetIPGlobalProperties()
+                .GetActiveTcpConnections()
+                        .FirstOrDefault(x => 
+                            x.LocalEndPoint.Equals(client.Client.LocalEndPoint)
+                            && x.RemoteEndPoint.Equals(client.Client.RemoteEndPoint));
+
+            if (state == default(TcpConnectionInformation)
+                || state.State == TcpState.Unknown
+                || state.State == TcpState.FinWait1
+                || state.State == TcpState.FinWait2
+                || state.State == TcpState.Closed
+                || state.State == TcpState.Closing
+                || state.State == TcpState.CloseWait)
+            {
+                return false;
+            }
 
             if ((client.Client.Poll(0, SelectMode.SelectWrite)) && (!client.Client.Poll(0, SelectMode.SelectError)))
             {
@@ -1183,10 +1200,8 @@ namespace CavemanTcp
                     return true;
                 }
             }
-            else
-            {
-                return false;
-            }
+
+            return false;
         }
 
         private async Task AcceptConnections()
