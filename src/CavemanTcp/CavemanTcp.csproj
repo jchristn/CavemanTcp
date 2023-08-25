@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<TargetFrameworks>netstandard2.1;net461;net472;net6.0;net7.0</TargetFrameworks>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<Version>2.0.1</Version>
+		<Version>2.0.2</Version>
 		<Authors>Joel Christner</Authors>
 		<Description>CavemanTcp is a simple TCP client and server providing easy integration and full control over network reads and writes, allowing you to build your own state machines with ease.</Description>
 		<Copyright>(c)2022 Joel Christner</Copyright>
@@ -60,8 +60,8 @@
 
 	<ItemGroup>
 		<None Include="..\..\README.md">
-		  <Pack>True</Pack>
-		  <PackagePath>\</PackagePath>
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
 		</None>
 		<None Include="assets\icon.png">
 			<Pack>True</Pack>

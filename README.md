@@ -26,6 +26,8 @@ As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; 
 - ```Send``` and ```Read``` methods using ```string ipPort``` are marked obsolete
 - ```AddClient``` moved closer to connection acceptance
 - Target ```net7.0``` and ```net472```
+- Better detection of disconnects
+- Disable Nagle's algorithm by default
 
 ## Examples
 

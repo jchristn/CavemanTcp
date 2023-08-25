@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
@@ -128,7 +129,6 @@ namespace CavemanTcp
         private CancellationTokenSource _TokenSource = new CancellationTokenSource();
         private CancellationToken _Token;
         private Task _ConnectionMonitor = null;
-        private readonly object _PollLock = new object();
 
         #endregion
 
@@ -311,6 +311,20 @@ namespace CavemanTcp
                         throw new AuthenticationException("Mutual authentication failed");
                     }
                 }
+
+                _IsConnected = true;
+                _Statistics = new CavemanTcpStatistics();
+                _TokenSource = new CancellationTokenSource();
+                _Token = _TokenSource.Token;
+
+                if (_Settings.EnableConnectionMonitor)
+                {
+                    Logger?.Invoke(_Header + "starting connection monitor");
+
+                    _ConnectionMonitor = Task.Run(() => ConnectionMonitor(), _Token);
+                }
+
+                _Events.HandleClientConnected(this);
             }
             catch (Exception e)
             {
@@ -322,18 +336,6 @@ namespace CavemanTcp
             {
                 wh.Close();
             }
-
-            _IsConnected = true;
-            _Statistics = new CavemanTcpStatistics();
-            _TokenSource = new CancellationTokenSource();
-            _Token = _TokenSource.Token;
-            
-            if (_Settings.EnableConnectionMonitor)
-            {
-                _ConnectionMonitor = Task.Run(() => ConnectionMonitor(), _Token);
-            }
-
-            _Events.HandleClientConnected(this); 
         }
 
         /// <summary>
@@ -749,6 +751,8 @@ namespace CavemanTcp
             }
 
             _Client = new System.Net.Sockets.TcpClient();
+            _Client.NoDelay = true;
+
             _SslStream = null;
 
             if (_Ssl && _SslCertificate == null)
@@ -773,29 +777,97 @@ namespace CavemanTcp
 
         private bool IsClientConnected()
         {
-            if (_Client == null) return false;
-            if (!_Client.Connected) return false;
-
-            lock (_PollLock)
+            if (_Client == null)
             {
-                if ((_Client.Client.Poll(_Settings.PollIntervalMicroSeconds, SelectMode.SelectWrite)) && (!_Client.Client.Poll(_Settings.PollIntervalMicroSeconds, SelectMode.SelectError)))
+                Logger?.Invoke(_Header + "null TCP client");
+                return false;
+            }
+            if (!_Client.Connected)
+            {
+                Logger?.Invoke(_Header + "TCP client reports not connected");
+                return false;
+            }
+
+            while (!_WriteSemaphore.Wait(10))
+            {
+                Task.Delay(10).Wait();
+            }
+
+            try
+            {
+                IPGlobalProperties properties = IPGlobalProperties.GetIPGlobalProperties();
+                TcpConnectionInformation[] connections = properties.GetActiveTcpConnections();
+
+                var state = connections.FirstOrDefault(x =>
+                            x.LocalEndPoint.Port.Equals(((IPEndPoint)_Client.Client.LocalEndPoint).Port)
+                            && x.RemoteEndPoint.Port.Equals(((IPEndPoint)_Client.Client.RemoteEndPoint).Port));
+
+                if (state == null)
                 {
-                    byte[] buffer = new byte[1];
-                    if (_Client.Client.Receive(buffer, SocketFlags.Peek) == 0)
+                    Logger?.Invoke(_Header + "null connection state");
+                    return false;
+                }
+                else
+                {
+                    if (state == default(TcpConnectionInformation)
+                        || state.State == TcpState.Unknown
+                        || state.State == TcpState.FinWait1
+                        || state.State == TcpState.FinWait2
+                        || state.State == TcpState.Closed
+                        || state.State == TcpState.Closing
+                        || state.State == TcpState.CloseWait)
                     {
-                        Logger?.Invoke(_Header + "socket peek returned false");
+                        Logger?.Invoke(_Header + "TCP connection state: " + state.ToString());
                         return false;
                     }
-                    else
+                }
+
+                try
+                {
+                    _Client.Client.Send(new byte[1], 0, 0);
+                    return true;
+                }
+                catch (SocketException se)
+                {
+                    if (se.NativeErrorCode.Equals(10035))
                     {
                         return true;
                     }
                 }
-                else
+                catch (Exception)
                 {
-                    Logger?.Invoke(_Header + "unable to poll client socket");
+                }
+
+                try
+                {
+                    if ((_Client.Client.Poll(0, SelectMode.SelectWrite))
+                        && (!_Client.Client.Poll(0, SelectMode.SelectError)))
+                    {
+                        if (_Client.Client.Receive(new byte[1], SocketFlags.Peek) == 0)
+                        {
+                            Logger?.Invoke(_Header + "unable to peek from receive buffer");
+                            return false;
+                        }
+                        else
+                        {
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        Logger?.Invoke(_Header + "unable to poll socket");
+                        return false;
+                    }
+                }
+                catch (Exception)
+                {
+                    Logger?.Invoke(_Header + "exception while polling socket");
                     return false;
                 }
+            }
+            finally
+            {
+                _WriteSemaphore.Release();
             }
         }
 

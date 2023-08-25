@@ -1175,41 +1175,101 @@ namespace CavemanTcp
 
         #region Connection
 
-        private bool IsClientConnected(System.Net.Sockets.TcpClient client)
+        private bool IsClientConnected(ClientMetadata client)
         {
-            if (client == null) return false;
-
-            var state = IPGlobalProperties.GetIPGlobalProperties()
-                .GetActiveTcpConnections()
-                    .FirstOrDefault(x =>
-                        x.LocalEndPoint.Equals(client.Client.LocalEndPoint)
-                        && x.RemoteEndPoint.Equals(client.Client.RemoteEndPoint));
-
-            if (state == default(TcpConnectionInformation)
-                || state.State == TcpState.Unknown
-                || state.State == TcpState.FinWait1
-                || state.State == TcpState.FinWait2
-                || state.State == TcpState.Closed
-                || state.State == TcpState.Closing
-                || state.State == TcpState.CloseWait)
+            if (client == null || client.Client == null)
             {
+                Logger?.Invoke(_Header + "null TCP client");
                 return false;
             }
 
-            if ((client.Client.Poll(0, SelectMode.SelectWrite)) && (!client.Client.Poll(0, SelectMode.SelectError)))
+            if (!client.Client.Connected)
             {
-                byte[] buffer = new byte[1];
-                if (client.Client.Receive(buffer, SocketFlags.Peek) == 0)
+                Logger?.Invoke(_Header + "client " + client.Guid.ToString() + " reports not connected");
+                return false;
+            }
+
+            while (!client.WriteSemaphore.Wait(10))
+            {
+                Task.Delay(10).Wait();
+            }
+
+            try
+            {
+                IPGlobalProperties properties = IPGlobalProperties.GetIPGlobalProperties();
+                TcpConnectionInformation[] connections = properties.GetActiveTcpConnections();
+
+                var state = connections.FirstOrDefault(x =>
+                            x.LocalEndPoint.Port.Equals(((IPEndPoint)client.Client.Client.LocalEndPoint).Port)
+                            && x.RemoteEndPoint.Port.Equals(((IPEndPoint)client.Client.Client.RemoteEndPoint).Port));
+
+                if (state == null)
                 {
+                    Logger?.Invoke(_Header + "client " + client.Guid.ToString() + " reports null connection state");
                     return false;
                 }
                 else
                 {
+                    if (state == default(TcpConnectionInformation)
+                        || state.State == TcpState.Unknown
+                        || state.State == TcpState.FinWait1
+                        || state.State == TcpState.FinWait2
+                        || state.State == TcpState.Closed
+                        || state.State == TcpState.Closing
+                        || state.State == TcpState.CloseWait)
+                    {
+                        Logger?.Invoke(_Header + "client " + client.Guid.ToString() + " reports TCP connection state: " + state.ToString());
+                        return false;
+                    }
+                }
+
+                try
+                {
+                    client.Client.Client.Send(new byte[1], 0, 0);
                     return true;
                 }
-            }
+                catch (SocketException se)
+                {
+                    if (se.NativeErrorCode.Equals(10035))
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception)
+                {
+                }
 
-            return false;
+                try
+                {
+                    if ((client.Client.Client.Poll(0, SelectMode.SelectWrite))
+                        && (!client.Client.Client.Poll(0, SelectMode.SelectError)))
+                    {
+                        if (client.Client.Client.Receive(new byte[1], SocketFlags.Peek) == 0)
+                        {
+                            Logger?.Invoke(_Header + "unable to peek from receive buffer");
+                            return false;
+                        }
+                        else
+                        {
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        Logger?.Invoke(_Header + "unable to poll socket");
+                        return false;
+                    }
+                }
+                catch (Exception)
+                {
+                    Logger?.Invoke(_Header + "exception while polling socket");
+                    return false;
+                }
+            }
+            finally
+            {
+                client.WriteSemaphore.Release();
+            }
         }
 
         private async Task AcceptConnections()
@@ -1238,6 +1298,8 @@ namespace CavemanTcp
                 try
                 {
                     TcpClient tcpClient = await _Listener.AcceptTcpClientAsync().ConfigureAwait(false);
+                    tcpClient.NoDelay = true;
+
                     string clientIpPort = tcpClient.Client.RemoteEndPoint.ToString();
 
                     client = new ClientMetadata(tcpClient);
@@ -1404,7 +1466,7 @@ namespace CavemanTcp
                 while (client != null && !client.Token.IsCancellationRequested)
                 {
                     await Task.Delay(1000, token).ConfigureAwait(false);
-                    if (client == null || client.Client == null || !IsClientConnected(client.Client)) break;
+                    if (!IsClientConnected(client)) break;
                 }
             }
             catch (SocketException)

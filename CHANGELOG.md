@@ -2,7 +2,7 @@
 
 ## Current Version
 
-v2.0.0
+v2.0.x
 
 - Breaking changes
 - Clients now referenced by ```Guid``` instead of ```string ipPort```
@@ -10,6 +10,8 @@ v2.0.0
 - ```Send``` and ```Read``` methods using ```string ipPort``` are marked obsolete
 - ```AddClient``` moved closer to connection acceptance
 - Target ```net7.0``` and ```net472```
+- Better detection of disconnects
+- Disable Nagle's algorithm by default
 
 ## Previous Versions
 
