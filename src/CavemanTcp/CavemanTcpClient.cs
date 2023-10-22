@@ -122,7 +122,8 @@ namespace CavemanTcp
         private SslStream _SslStream = null;
         private X509Certificate2 _SslCertificate = null;
         private X509Certificate2Collection _SslCertificateCollection;
-
+        private readonly bool _AuthenticateServerIpOrHostOnly;
+        
         private SemaphoreSlim _WriteSemaphore = new SemaphoreSlim(1, 1);
         private SemaphoreSlim _ReadSemaphore = new SemaphoreSlim(1, 1);
 
@@ -155,6 +156,34 @@ namespace CavemanTcp
             InitializeClient();
         }
 
+        /// <summary>
+        /// Instantiates the TCP client.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
+        /// </summary>
+        /// <param name="serverIpOrHostname">The server IP address or hostname.</param>
+        /// <param name="port">The TCP port on which to connect.</param>
+        /// <param name="ssl">Enable or disable SSL.</param>
+        public CavemanTcpClient(string serverIpOrHostname, int port, bool ssl)
+        {
+            if (String.IsNullOrEmpty(serverIpOrHostname)) throw new ArgumentNullException(nameof(serverIpOrHostname));
+            if (port < 0) throw new ArgumentException("Port must be zero or greater.");
+
+            _ServerIp = serverIpOrHostname;
+
+            if (!IPAddress.TryParse(_ServerIp, out _IPAddress))
+            {
+                _IPAddress = Dns.GetHostEntry(serverIpOrHostname).AddressList[0];
+                _ServerIp = _IPAddress.ToString();
+            }
+
+            _ServerPort = port;
+
+            _Ssl = ssl;
+
+            _AuthenticateServerIpOrHostOnly = true;
+            
+            InitializeClient(); 
+        }
+        
         /// <summary>
         /// Instantiates the TCP client without SSL.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
         /// </summary>
@@ -757,19 +786,28 @@ namespace CavemanTcp
 
             if (_Ssl && _SslCertificate == null)
             {
-                if (String.IsNullOrEmpty(_PfxPassword))
+                if (_AuthenticateServerIpOrHostOnly)
                 {
-                    _SslCertificate = new X509Certificate2(_PfxCertFilename);
+                    // create an empty collection to pass during authentication
+                    _SslCertificateCollection = new X509Certificate2Collection();
                 }
                 else
                 {
-                    _SslCertificate = new X509Certificate2(_PfxCertFilename, _PfxPassword);
-                }
+                    if (String.IsNullOrEmpty(_PfxPassword))
+                    {
+                        _SslCertificate = new X509Certificate2(_PfxCertFilename);
+                    }
+                    else
+                    {
+                        _SslCertificate = new X509Certificate2(_PfxCertFilename, _PfxPassword);
+                    }
 
-                _SslCertificateCollection = new X509Certificate2Collection
-                {
-                    _SslCertificate
-                };
+                    _SslCertificateCollection = new X509Certificate2Collection
+                    {
+                        _SslCertificate
+                    };
+
+                }
             }
 
             _Header = "[CavemanTcp.Client " + _ServerIp + ":" + _ServerPort + "] ";

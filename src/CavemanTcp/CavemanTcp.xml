@@ -73,6 +73,14 @@
             <param name="pfxCertFilename">The filename of the PFX certificate file.</param>
             <param name="pfxPassword">The password to the PFX certificate file.</param>
         </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.#ctor(System.String,System.Int32,System.Boolean)">
+            <summary>
+            Instantiates the TCP client with ssl, authenticating server only.
+            </summary>
+            <param name="serverIpOrHostname">The server IP address or hostname.</param>
+            <param name="port">The TCP port on which to connect.</param>
+            <param name="ssl">Enable or disable SSL.</param>
+        </member>
         <member name="M:CavemanTcp.CavemanTcpClient.Dispose">
             <summary>
             Dispose of the TCP client.
