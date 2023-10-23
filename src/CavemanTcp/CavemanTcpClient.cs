@@ -320,7 +320,7 @@ namespace CavemanTcp
                     else
                     {
                         // do not accept invalid SSL certificates
-                        _SslStream = new SslStream(_NetworkStream, false);
+                        _SslStream = new SslStream(_NetworkStream, false, ValidateServerCertificate);
                     }
 
                     _SslStream.AuthenticateAsClient(_ServerIp, _SslCertificateCollection, Common.GetSslProtocol, !_Settings.AcceptInvalidCertificates);
@@ -366,6 +366,7 @@ namespace CavemanTcp
                 wh.Close();
             }
         }
+
 
         /// <summary>
         /// Disconnect from the server.
@@ -912,6 +913,18 @@ namespace CavemanTcp
         private bool AcceptCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         { 
             return _Settings.AcceptInvalidCertificates;
+        }
+        
+        private bool ValidateServerCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            if (sslPolicyErrors == SslPolicyErrors.None)
+            {
+                return true;
+            }
+            
+            Logger?.Invoke(_Header + $"Certificate error: {sslPolicyErrors}");
+
+            return false;
         }
 
         private async Task ConnectionMonitor()
