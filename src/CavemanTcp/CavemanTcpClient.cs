@@ -924,6 +924,46 @@ namespace CavemanTcp
             
             Logger?.Invoke(_Header + $"Certificate error: {sslPolicyErrors}");
 
+            if (chain != null && chain.ChainElements.Count > 0)
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine($"Chain element information ({chain.ChainElements.Count} found) ...");
+                sb.AppendLine();
+                
+                for (int i = 0; i < chain.ChainElements.Count; i++)
+                {
+                    X509ChainElement element = chain.ChainElements[i];
+                    sb.AppendLine($"Number: {i}");
+                    sb.AppendLine($"Subject: {element.Certificate.Subject}");
+                    sb.AppendLine($"Issuer: {element.Certificate.Issuer}");
+                    sb.AppendLine($"Thumbprint: {element.Certificate.Thumbprint}");
+                    sb.AppendLine(
+                        $"Validity Period: {element.Certificate.NotBefore} to {element.Certificate.NotAfter}");
+
+                    if (element.ChainElementStatus.Any())
+                    {
+                        sb.AppendLine();
+                        sb.AppendLine($"Element chain status information ({element.ChainElementStatus.Length} found): ");
+                        sb.AppendLine();
+                        foreach (X509ChainStatus status in element.ChainElementStatus)
+                        {
+                            if (status.Status != X509ChainStatusFlags.NoError)
+                            {
+                                sb.AppendLine($"Status: {status.Status}");
+                                sb.AppendLine($"Status Information: {status.StatusInformation}");
+                            }
+                        }
+                        
+                    }
+
+                    sb.AppendLine("---");
+                }
+
+                sb.AppendLine("End of chain element information");
+                
+                Logger?.Invoke(_Header + $"{sb}");
+            }
+
             return false;
         }
 
