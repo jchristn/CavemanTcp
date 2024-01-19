@@ -316,6 +316,9 @@ namespace CavemanTcp
                     {
                         // accept invalid certs
                         _SslStream = new SslStream(_NetworkStream, false, new RemoteCertificateValidationCallback(AcceptCertificate));
+
+                        // override the online revoca
+                        _Settings.CheckCertificateRevocation = false;
                     }
                     else
                     {
@@ -323,7 +326,7 @@ namespace CavemanTcp
                         _SslStream = new SslStream(_NetworkStream, false, ValidateServerCertificate);
                     }
 
-                    _SslStream.AuthenticateAsClient(_ServerIp, _SslCertificateCollection, Common.GetSslProtocol, !_Settings.AcceptInvalidCertificates);
+                    _SslStream.AuthenticateAsClient(_ServerIp, _SslCertificateCollection, Common.GetSslProtocol, _Settings.CheckCertificateRevocation);
 
                     if (!_SslStream.IsEncrypted)
                     {
@@ -924,6 +927,7 @@ namespace CavemanTcp
             
             Logger?.Invoke(_Header + $"Certificate error: {sslPolicyErrors}");
 
+            // if we have a certificate chain, log this for debugging.
             if (chain != null && chain.ChainElements.Count > 0)
             {
                 StringBuilder sb = new StringBuilder();

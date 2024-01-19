@@ -46,6 +46,14 @@
             </summary>
             <param name="ipPort">The IP:port of the server.</param> 
         </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.#ctor(System.String,System.Int32,System.Boolean)">
+            <summary>
+            Instantiates the TCP client.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
+            </summary>
+            <param name="serverIpOrHostname">The server IP address or hostname.</param>
+            <param name="port">The TCP port on which to connect.</param>
+            <param name="ssl">Enable or disable SSL.</param>
+        </member>
         <member name="M:CavemanTcp.CavemanTcpClient.#ctor(System.String,System.Int32,System.Security.Cryptography.X509Certificates.X509Certificate2)">
             <summary>
             Instantiates the TCP client without SSL.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
@@ -72,14 +80,6 @@
             <param name="ssl">Enable or disable SSL.</param>
             <param name="pfxCertFilename">The filename of the PFX certificate file.</param>
             <param name="pfxPassword">The password to the PFX certificate file.</param>
-        </member>
-        <member name="M:CavemanTcp.CavemanTcpClient.#ctor(System.String,System.Int32,System.Boolean)">
-            <summary>
-            Instantiates the TCP client with ssl, authenticating server only.
-            </summary>
-            <param name="serverIpOrHostname">The server IP address or hostname.</param>
-            <param name="port">The TCP port on which to connect.</param>
-            <param name="ssl">Enable or disable SSL.</param>
         </member>
         <member name="M:CavemanTcp.CavemanTcpClient.Dispose">
             <summary>
@@ -278,6 +278,19 @@
         <member name="P:CavemanTcp.CavemanTcpClientSettings.AcceptInvalidCertificates">
             <summary>
             Enable or disable acceptance of invalid SSL certificates.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpClientSettings.CheckCertificateRevocation">
+            <summary>
+            Enable or disable this to perform certificate revocation checks.  This is in addition to the accept
+             invalid certificates setting which just decides to ignore issues that arise in the call back during the
+             authentication phase.
+            
+            The client performs the revocation check by using either the Certificate Revocation List (CRL) or the
+            Online Certificate Status Protocol (OCSP).
+            
+            By default this value is set to false.  If AcceptInvalidCertificates is set to true, then this value will be
+            set to false at runtime. 
             </summary>
         </member>
         <member name="P:CavemanTcp.CavemanTcpClientSettings.MutuallyAuthenticate">
