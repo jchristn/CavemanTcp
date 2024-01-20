@@ -317,7 +317,7 @@ namespace CavemanTcp
                         // accept invalid certs
                         _SslStream = new SslStream(_NetworkStream, false, new RemoteCertificateValidationCallback(AcceptCertificate));
 
-                        // override the online revoca
+                        // override the online revocation check
                         _Settings.CheckCertificateRevocation = false;
                     }
                     else
@@ -924,51 +924,72 @@ namespace CavemanTcp
             {
                 return true;
             }
-            
+        
             Logger?.Invoke(_Header + $"Certificate error: {sslPolicyErrors}");
-
-            // if we have a certificate chain, log this for debugging.
-            if (chain != null && chain.ChainElements.Count > 0)
+        
+            if (chain != null && chain.ChainElements != null && chain.ChainElements.Count > 0)
             {
-                StringBuilder sb = new StringBuilder();
-                sb.AppendLine($"Chain element information ({chain.ChainElements.Count} found) ...");
-                sb.AppendLine();
-                
-                for (int i = 0; i < chain.ChainElements.Count; i++)
-                {
-                    X509ChainElement element = chain.ChainElements[i];
-                    sb.AppendLine($"Number: {i}");
-                    sb.AppendLine($"Subject: {element.Certificate.Subject}");
-                    sb.AppendLine($"Issuer: {element.Certificate.Issuer}");
-                    sb.AppendLine($"Thumbprint: {element.Certificate.Thumbprint}");
-                    sb.AppendLine(
-                        $"Validity Period: {element.Certificate.NotBefore} to {element.Certificate.NotAfter}");
+                var chainInfo = GetCertificateChainInformation(chain);
+                Logger?.Invoke(_Header + chainInfo);
+            }
+            else
+            {
+                Logger?.Invoke(_Header + "No certificate chain could be established");
+            }
+        
+            return false;
+        }
 
-                    if (element.ChainElementStatus.Any())
-                    {
-                        sb.AppendLine();
-                        sb.AppendLine($"Element chain status information ({element.ChainElementStatus.Length} found): ");
-                        sb.AppendLine();
-                        foreach (X509ChainStatus status in element.ChainElementStatus)
-                        {
-                            if (status.Status != X509ChainStatusFlags.NoError)
-                            {
-                                sb.AppendLine($"Status: {status.Status}");
-                                sb.AppendLine($"Status Information: {status.StatusInformation}");
-                            }
-                        }
-                        
-                    }
+        private string GetCertificateChainInformation(X509Chain chain)
+        {
+            StringBuilder sb = new StringBuilder();
+            
+            sb.AppendLine($"Chain element information ({chain.ChainElements.Count} found) ...");
 
-                    sb.AppendLine("---");
-                }
-
-                sb.AppendLine("End of chain element information");
-                
-                Logger?.Invoke(_Header + $"{sb}");
+            for (int i = 0; i < chain.ChainElements.Count; i++)
+            {
+                var elementInfo = GetCertificateChainElementInformation(chain.ChainElements[i], i);
+                sb.AppendLine(elementInfo);
             }
 
-            return false;
+            sb.AppendLine("End of chain element information");
+            return sb.ToString();
+        }
+
+        private string GetCertificateChainElementInformation(X509ChainElement element, int index)
+        {
+            if (element == null)
+            {
+                return "No chain element information could be retrieved";
+            }
+
+            if (element.Certificate == null)
+            {
+                return "No chain element certificate information could be retrieved";
+            } 
+            
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine($"Number: {index}");
+            sb.AppendLine($"Subject: {element.Certificate.Subject}");
+            sb.AppendLine($"Issuer: {element.Certificate.Issuer}");
+            sb.AppendLine($"Thumbprint: {element.Certificate.Thumbprint}");
+            sb.AppendLine($"Validity Period: {element.Certificate.NotBefore} to {element.Certificate.NotAfter}");
+
+            if (element.ChainElementStatus != null && element.ChainElementStatus.Any())
+            {
+                sb.AppendLine($"Element chain status information ({element.ChainElementStatus.Length} found): ");
+                foreach (X509ChainStatus status in element.ChainElementStatus)
+                {
+                    if (status.Status != X509ChainStatusFlags.NoError)
+                    {
+                        sb.AppendLine($"Status: {status.Status}");
+                        sb.AppendLine($"Status Information: {status.StatusInformation}");
+                    }
+                }
+            }
+
+            sb.AppendLine("---");
+            return sb.ToString();
         }
 
         private async Task ConnectionMonitor()
