@@ -46,6 +46,14 @@
             </summary>
             <param name="ipPort">The IP:port of the server.</param> 
         </member>
+        <member name="M:CavemanTcp.CavemanTcpClient.#ctor(System.String,System.Int32,System.Boolean)">
+            <summary>
+            Instantiates the TCP client.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
+            </summary>
+            <param name="serverIpOrHostname">The server IP address or hostname.</param>
+            <param name="port">The TCP port on which to connect.</param>
+            <param name="ssl">Enable or disable SSL.</param>
+        </member>
         <member name="M:CavemanTcp.CavemanTcpClient.#ctor(System.String,System.Int32,System.Security.Cryptography.X509Certificates.X509Certificate2)">
             <summary>
             Instantiates the TCP client without SSL.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
@@ -270,6 +278,20 @@
         <member name="P:CavemanTcp.CavemanTcpClientSettings.AcceptInvalidCertificates">
             <summary>
             Enable or disable acceptance of invalid SSL certificates.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpClientSettings.CheckCertificateRevocation">
+            <summary>
+            Enable or disable this to tell the TcpClient perform certificate revocation checks.  This is not to be confused
+             with AcceptInvalidCertificates setting which decides whether to ignore issues that arise in the call back during the
+             authentication phase.
+            
+            With this setting on, in addition to the certificate validation the client performs a revocation check by using either
+             the Certificate Revocation List (CRL) or the Online Certificate Status Protocol (OCSP).
+             This may not always be needed, which is why this option is exposed here.
+            
+            By default this value is set to false.  If AcceptInvalidCertificates is set to true, then this value will be
+             set to false at runtime. 
             </summary>
         </member>
         <member name="P:CavemanTcp.CavemanTcpClientSettings.MutuallyAuthenticate">

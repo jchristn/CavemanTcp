@@ -122,7 +122,8 @@ namespace CavemanTcp
         private SslStream _SslStream = null;
         private X509Certificate2 _SslCertificate = null;
         private X509Certificate2Collection _SslCertificateCollection;
-
+        private readonly bool _AuthenticateServerIpOrHostOnly;
+        
         private SemaphoreSlim _WriteSemaphore = new SemaphoreSlim(1, 1);
         private SemaphoreSlim _ReadSemaphore = new SemaphoreSlim(1, 1);
 
@@ -155,6 +156,34 @@ namespace CavemanTcp
             InitializeClient();
         }
 
+        /// <summary>
+        /// Instantiates the TCP client.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
+        /// </summary>
+        /// <param name="serverIpOrHostname">The server IP address or hostname.</param>
+        /// <param name="port">The TCP port on which to connect.</param>
+        /// <param name="ssl">Enable or disable SSL.</param>
+        public CavemanTcpClient(string serverIpOrHostname, int port, bool ssl)
+        {
+            if (String.IsNullOrEmpty(serverIpOrHostname)) throw new ArgumentNullException(nameof(serverIpOrHostname));
+            if (port < 0) throw new ArgumentException("Port must be zero or greater.");
+
+            _ServerIp = serverIpOrHostname;
+
+            if (!IPAddress.TryParse(_ServerIp, out _IPAddress))
+            {
+                _IPAddress = Dns.GetHostEntry(serverIpOrHostname).AddressList[0];
+                _ServerIp = _IPAddress.ToString();
+            }
+
+            _ServerPort = port;
+
+            _Ssl = ssl;
+
+            _AuthenticateServerIpOrHostOnly = true;
+            
+            InitializeClient(); 
+        }
+        
         /// <summary>
         /// Instantiates the TCP client without SSL.  Set the Connected, Disconnected, and DataReceived callbacks.  Once set, use Connect() to connect to the server.
         /// </summary>
@@ -287,14 +316,17 @@ namespace CavemanTcp
                     {
                         // accept invalid certs
                         _SslStream = new SslStream(_NetworkStream, false, new RemoteCertificateValidationCallback(AcceptCertificate));
+
+                        // override the online revocation check
+                        _Settings.CheckCertificateRevocation = false;
                     }
                     else
                     {
                         // do not accept invalid SSL certificates
-                        _SslStream = new SslStream(_NetworkStream, false);
+                        _SslStream = new SslStream(_NetworkStream, false, ValidateServerCertificate);
                     }
 
-                    _SslStream.AuthenticateAsClient(_ServerIp, _SslCertificateCollection, Common.GetSslProtocol, !_Settings.AcceptInvalidCertificates);
+                    _SslStream.AuthenticateAsClient(_ServerIp, _SslCertificateCollection, Common.GetSslProtocol, _Settings.CheckCertificateRevocation);
 
                     if (!_SslStream.IsEncrypted)
                     {
@@ -337,6 +369,7 @@ namespace CavemanTcp
                 wh.Close();
             }
         }
+
 
         /// <summary>
         /// Disconnect from the server.
@@ -757,19 +790,28 @@ namespace CavemanTcp
 
             if (_Ssl && _SslCertificate == null)
             {
-                if (String.IsNullOrEmpty(_PfxPassword))
+                if (_AuthenticateServerIpOrHostOnly)
                 {
-                    _SslCertificate = new X509Certificate2(_PfxCertFilename);
+                    // create an empty collection to pass during authentication
+                    _SslCertificateCollection = new X509Certificate2Collection();
                 }
                 else
                 {
-                    _SslCertificate = new X509Certificate2(_PfxCertFilename, _PfxPassword);
-                }
+                    if (String.IsNullOrEmpty(_PfxPassword))
+                    {
+                        _SslCertificate = new X509Certificate2(_PfxCertFilename);
+                    }
+                    else
+                    {
+                        _SslCertificate = new X509Certificate2(_PfxCertFilename, _PfxPassword);
+                    }
 
-                _SslCertificateCollection = new X509Certificate2Collection
-                {
-                    _SslCertificate
-                };
+                    _SslCertificateCollection = new X509Certificate2Collection
+                    {
+                        _SslCertificate
+                    };
+
+                }
             }
 
             _Header = "[CavemanTcp.Client " + _ServerIp + ":" + _ServerPort + "] ";
@@ -874,6 +916,80 @@ namespace CavemanTcp
         private bool AcceptCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         { 
             return _Settings.AcceptInvalidCertificates;
+        }
+        
+        private bool ValidateServerCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            if (sslPolicyErrors == SslPolicyErrors.None)
+            {
+                return true;
+            }
+        
+            Logger?.Invoke(_Header + $"Certificate error: {sslPolicyErrors}");
+        
+            if (chain != null && chain.ChainElements != null && chain.ChainElements.Count > 0)
+            {
+                var chainInfo = GetCertificateChainInformation(chain);
+                Logger?.Invoke(_Header + chainInfo);
+            }
+            else
+            {
+                Logger?.Invoke(_Header + "No certificate chain could be established");
+            }
+        
+            return false;
+        }
+
+        private string GetCertificateChainInformation(X509Chain chain)
+        {
+            StringBuilder sb = new StringBuilder();
+            
+            sb.AppendLine($"Chain element information ({chain.ChainElements.Count} found) ...");
+
+            for (int i = 0; i < chain.ChainElements.Count; i++)
+            {
+                var elementInfo = GetCertificateChainElementInformation(chain.ChainElements[i], i);
+                sb.AppendLine(elementInfo);
+            }
+
+            sb.AppendLine("End of chain element information");
+            return sb.ToString();
+        }
+
+        private string GetCertificateChainElementInformation(X509ChainElement element, int index)
+        {
+            if (element == null)
+            {
+                return "No chain element information could be retrieved";
+            }
+
+            if (element.Certificate == null)
+            {
+                return "No chain element certificate information could be retrieved";
+            } 
+            
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine($"Number: {index}");
+            sb.AppendLine($"Subject: {element.Certificate.Subject}");
+            sb.AppendLine($"Issuer: {element.Certificate.Issuer}");
+            sb.AppendLine($"Thumbprint: {element.Certificate.Thumbprint}");
+            sb.AppendLine($"Validity Period: {element.Certificate.NotBefore} to {element.Certificate.NotAfter}");
+
+            if (element.ChainElementStatus != null && element.ChainElementStatus.Any())
+            {
+                sb.AppendLine($"Element chain status information ({element.ChainElementStatus.Length} found): ");
+                foreach (X509ChainStatus status in element.ChainElementStatus)
+                {
+                    if (status.Status != X509ChainStatusFlags.NoError)
+                    {
+                        sb.AppendLine($"Status: {status.Status}");
+                        sb.AppendLine($"Status Information: {status.StatusInformation}");
+                    }
+                }
+            }
+
+            sb.AppendLine("---");
+            return sb.ToString();
         }
 
         private async Task ConnectionMonitor()
