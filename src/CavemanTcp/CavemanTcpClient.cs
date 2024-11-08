@@ -1428,82 +1428,84 @@ namespace CavemanTcp
         // Supplied cancellation token, timeout cancellation token
         private async Task<ReadResult> ReadWithTimeoutInternalAsync(int timeoutMs, long count, CancellationToken token)
         {
-            CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, token);
-            CancellationToken timeoutToken = timeoutCts.Token;
-
-            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
-
-            while (true)
+            using (CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, token))
             {
-                bool success = await _ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
-                if (success) break;
-                await Task.Delay(10, token).ConfigureAwait(false);
-            }
+                CancellationToken timeoutToken = timeoutCts.Token;
 
-            Task<ReadResult> task = Task.Run(async () =>
-            {
-                try
+                ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
+
+                while (true)
                 {
-                    MemoryStream ms = new MemoryStream();
-                    long bytesRemaining = count;
+                    bool success = await _ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
+                    if (success) break;
+                    await Task.Delay(10, token).ConfigureAwait(false);
+                }
 
-                    while (bytesRemaining > 0)
+                Task<ReadResult> task = Task.Run(async () =>
+                {
+                    try
                     {
-                        byte[] buffer = null;
-                        if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
-                        else buffer = new byte[bytesRemaining];
+                        MemoryStream ms = new MemoryStream();
+                        long bytesRemaining = count;
 
-                        int bytesRead = 0;
-                        if (!_Ssl) bytesRead = await _NetworkStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-                        else bytesRead = await _SslStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-
-                        if (bytesRead > 0)
+                        while (bytesRemaining > 0)
                         {
-                            await ms.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
-                            result.BytesRead += bytesRead;
-                            _Statistics.AddReceivedBytes(bytesRead);
-                            bytesRemaining -= bytesRead;
+                            byte[] buffer = null;
+                            if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
+                            else buffer = new byte[bytesRemaining];
+
+                            int bytesRead = 0;
+                            if (!_Ssl) bytesRead = await _NetworkStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+                            else bytesRead = await _SslStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+
+                            if (bytesRead > 0)
+                            {
+                                await ms.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
+                                result.BytesRead += bytesRead;
+                                _Statistics.AddReceivedBytes(bytesRead);
+                                bytesRemaining -= bytesRead;
+                            }
                         }
+
+                        ms.Seek(0, SeekOrigin.Begin);
+                        result.DataStream = ms;
+                        return result;
                     }
+                    catch (TaskCanceledException)
+                    {
+                        result.Status = ReadResultStatus.Canceled;
+                        return result;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        result.Status = ReadResultStatus.Canceled;
+                        return result;
+                    }
+                    catch (Exception)
+                    {
+                        _IsConnected = false;
+                        result.Status = ReadResultStatus.Disconnected;
+                        result.DataStream = null;
+                        return result;
+                    }
+                },
+                timeoutToken);
 
-                    ms.Seek(0, SeekOrigin.Begin);
-                    result.DataStream = ms;
-                    return result;
-                }
-                catch (TaskCanceledException)
+                Task delay = Task.Delay(timeoutMs, token);
+                Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
+                timeoutCts.Cancel();
+
+                _ReadSemaphore.Release();
+
+                if (first == task)
                 {
-                    result.Status = ReadResultStatus.Canceled;
-                    return result;
+                    return task.Result;
                 }
-                catch (OperationCanceledException)
+                else
                 {
-                    result.Status = ReadResultStatus.Canceled;
+                    result.Status = ReadResultStatus.Timeout;
                     return result;
                 }
-                catch (Exception)
-                {
-                    _IsConnected = false;
-                    result.Status = ReadResultStatus.Disconnected;
-                    result.DataStream = null;
-                    return result;
-                }
-            },
-            timeoutToken);
-
-            Task delay = Task.Delay(timeoutMs, token);
-            Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
-            timeoutCts.Cancel();
-
-            _ReadSemaphore.Release();
-
-            if (first == task)
-            {
-                return task.Result;
-            }
-            else
-            {
-                result.Status = ReadResultStatus.Timeout;
-                return result;
             }
         }
 

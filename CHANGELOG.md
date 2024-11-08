@@ -5,11 +5,11 @@
 v2.0.x
 
 - Breaking changes
-- Clients now referenced by ```Guid``` instead of ```string ipPort```
-- ```ListClients``` now returns an enumeration of ```ClientMetadata```
-- ```Send``` and ```Read``` methods using ```string ipPort``` are marked obsolete
-- ```AddClient``` moved closer to connection acceptance
-- Target ```net7.0``` and ```net472```
+- Clients now referenced by `Guid` instead of `string ipPort`
+- `ListClients` now returns an enumeration of `ClientMetadata`
+- `Send` and `Read` methods using `string ipPort` are marked obsolete
+- `AddClient` moved closer to connection acceptance
+- Target `net461` `net472` `net48` `net6.0` `net7.0` and `net8.0`
 - Better detection of disconnects
 - Disable Nagle's algorithm by default
 
@@ -37,7 +37,7 @@ v1.2.1
 
 v1.2.0
 
-- ```SendWithTimeout```, ```SendWithTimeoutAsync```, ```ReadWithTimeout```, and ```ReadWithTimeoutAsync``` APIs
+- `SendWithTimeout`, `SendWithTimeoutAsync`, `ReadWithTimeout`, and `ReadWithTimeoutAsync` APIs
 - Async test client and server
 - Disable MutuallyAuthenticate for SSL by default on the client
 

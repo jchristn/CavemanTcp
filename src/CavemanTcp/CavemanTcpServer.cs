@@ -342,6 +342,8 @@ namespace CavemanTcp
 
         #region Public-Methods
 
+        #region General
+
         /// <summary>
         /// Dispose of the TCP server.
         /// </summary>
@@ -422,6 +424,8 @@ namespace CavemanTcp
         {
             return GetClientList();
         }
+
+        #endregion
 
         #region Send
 
@@ -847,6 +851,8 @@ namespace CavemanTcp
 
         #endregion
 
+        #region Disconnect
+
         /// <summary>
         /// Disconnects the specified client.
         /// </summary>
@@ -873,6 +879,8 @@ namespace CavemanTcp
                 _Events.HandleClientDisconnected(this, new ClientDisconnectedEventArgs(client, DisconnectReason.Kicked));
             }
         }
+
+        #endregion
 
         #region Read
 
@@ -1200,7 +1208,7 @@ namespace CavemanTcp
                 TcpConnectionInformation[] connections = properties.GetActiveTcpConnections();
 
                 var state = connections.FirstOrDefault(x =>
-                            x.LocalEndPoint.Port.Equals(((IPEndPoint)client.Client.Client.LocalEndPoint).Port)
+                            x.LocalEndPoint.Equals(((IPEndPoint)client.Client.Client.LocalEndPoint).Port)
                             && x.RemoteEndPoint.Port.Equals(((IPEndPoint)client.Client.Client.RemoteEndPoint).Port));
 
                 if (state == null)

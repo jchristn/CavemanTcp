@@ -21,11 +21,11 @@ As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; 
 ## New in v2.0.x
 
 - Breaking changes
-- Clients now referenced by ```Guid``` instead of ```string ipPort```
-- ```ListClients``` now returns an enumeration of ```ClientMetadata```
-- ```Send``` and ```Read``` methods using ```string ipPort``` are marked obsolete
-- ```AddClient``` moved closer to connection acceptance
-- Target ```net7.0``` and ```net472```
+- Clients now referenced by `Guid` instead of `string ipPort`
+- `ListClients` now returns an enumeration of `ClientMetadata`
+- `Send` and `Read` methods using `string ipPort` are marked obsolete
+- `AddClient` moved closer to connection acceptance
+- Target `net461` `net472` `net48` `net6.0` `net7.0` and `net8.0`
 - Better detection of disconnects
 - Disable Nagle's algorithm by default
 
@@ -113,48 +113,48 @@ rr = await client.ReadWithTimeoutAsync([ms], [count]);
 
 ## WriteResult and ReadResult
 
-```WriteResult``` and ```ReadResult``` contains a ```Status``` property that indicates one of the following:
+`WriteResult` and `ReadResult` contains a `Status` property that indicates one of the following:
 
-- ```ClientNotFound``` - only applicable for server read and write operations
-- ```Success``` - the operation was successful
-- ```Timeout``` - the operation timed out (reserved for future use)
-- ```Disconnected``` - the peer disconnected
+- `ClientNotFound` - only applicable for server read and write operations
+- `Success` - the operation was successful
+- `Timeout` - the operation timed out (reserved for future use)
+- `Disconnected` - the peer disconnected
 
-```WriteResult``` also includes:
+`WriteResult` also includes:
 
-- ```BytesWritten``` - the number of bytes written to the socket.
+- `BytesWritten` - the number of bytes written to the socket.
 
-```ReadResult``` also includes:
+`ReadResult` also includes:
 
-- ```BytesRead``` - the number of bytes read from the socket.
-- ```DataStream``` - a ```MemoryStream``` containing the requested data.
-- ```Data``` - a ```byte[]``` representation of ```DataStream```.  Using this property will fully read ```DataStream``` to the end.
+- `BytesRead` - the number of bytes read from the socket.
+- `DataStream` - a `MemoryStream` containing the requested data.
+- `Data` - a `byte[]` representation of `DataStream`.  Using this property will fully read `DataStream` to the end.
 
 ## Local vs External Connections
 
 **IMPORTANT**
-* If you specify ```127.0.0.1``` as the listener IP address, it will only be able to accept connections from within the local host.  
+* If you specify `127.0.0.1` as the listener IP address, it will only be able to accept connections from within the local host.  
 * To accept connections from other machines:
   * Use a specific interface IP address, or
-  * Use ```null```, ```*```, ```+```, or ```0.0.0.0``` for the listener IP address (requires admin privileges to listen on any IP address)
+  * Use `null`, `*`, `+`, or `0.0.0.0` for the listener IP address (requires admin privileges to listen on any IP address)
 * Make sure you create a permit rule on your firewall to allow inbound connections on that port
 * If you use a port number under 1024, admin privileges will be required
 
 ## Operations with Timeouts
 
-When using any of the APIs that allow you to specify a timeout (i.e. ```SendWithTimeout```, ```SendWithTimeoutAsync```, ```ReadWithTimeout```, and ```ReadWithTimeoutAsync```), the resultant ```WriteResult``` and ```ReadResult``` as mentioned above will indicate if the operation timed out.  
+When using any of the APIs that allow you to specify a timeout (i.e. `SendWithTimeout`, `SendWithTimeoutAsync`, `ReadWithTimeout`, and `ReadWithTimeoutAsync`), the resultant `WriteResult` and `ReadResult` as mentioned above will indicate if the operation timed out.  
 
 It is important to understand what a timeout indicates and more important what it doesn't.
 
-- A timeout on a write operation has **nothing to do with whether or not the recipient read the data**.  Rather it is whether or not CavemanTcp was able to write the data to the underlying ```NetworkStream``` or ```SslStream```
-- A timeout on a read operation will occur if CavemanTcp is unable to read the specified number of bytes from the underlying ```NetworkStream``` or ```SslStream``` in the allotted number of milliseconds
-- Valid values for ```timeoutMs``` are ```-1``` or any positive integer.  ```-1``` indicates no timeout and is the same as using an API that doesn't specify a timeout
-- Pay close attention to either ```BytesRead``` or ```BytesWritten``` (if you were reading or writing) in the event of a timeout.  The timeout may have occurred mid-operation and therefore it will be important to recover from the failure.
+- A timeout on a write operation has **nothing to do with whether or not the recipient read the data**.  Rather it is whether or not CavemanTcp was able to write the data to the underlying `NetworkStream` or `SslStream`
+- A timeout on a read operation will occur if CavemanTcp is unable to read the specified number of bytes from the underlying `NetworkStream` or `SslStream` in the allotted number of milliseconds
+- Valid values for `timeoutMs` are `-1` or any positive integer.  `-1` indicates no timeout and is the same as using an API that doesn't specify a timeout
+- Pay close attention to either `BytesRead` or `BytesWritten` (if you were reading or writing) in the event of a timeout.  The timeout may have occurred mid-operation and therefore it will be important to recover from the failure.
   - For example, server sends client 50,000 bytes
-  - On the client, a ```ReadWithTimeout``` was initiated with a 10 second timeout, attempting to read 50,000 bytes
+  - On the client, a `ReadWithTimeout` was initiated with a 10 second timeout, attempting to read 50,000 bytes
   - In that 10 seconds, the client was only able to read 30,000 bytes
-  - A ```ReadResult``` with ```Status == ReadResultStatus.Timeout``` is returned, and the ```BytesRead``` property is set to 30,000
-  - In this case, **there are still 20,000 bytes from the server waiting in the client's underlying ```NetworkStream``` or ```SslStream```**
+  - A `ReadResult` with `Status == ReadResultStatus.Timeout` is returned, and the `BytesRead` property is set to 30,000
+  - In this case, **there are still 20,000 bytes from the server waiting in the client's underlying `NetworkStream` or `SslStream`**
   - As such, it is recommended that, upon timeout, you reset the connection (but this is your choice)
 
 ## TCP Keepalives
@@ -180,7 +180,7 @@ Some important notes about TCP keepalives:
 
 A special thanks to those that have helped improve the library thus far!
 
-@LeaT113 @Kliodna @zzampong @SaintedPsycho @samisil @eatyouroats @CetinOzdil
+@LeaT113 @Kliodna @zzampong @SaintedPsycho @samisil @eatyouroats @CetinOzdil @akselatom 
 
 ## Help or Feedback
 
