@@ -559,6 +559,23 @@ namespace CavemanTcp
             return ReadWithTimeoutInternal(-1, count); 
         }
 
+        /// <summary>
+        /// Read from the server.
+        /// </summary>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <param name="terminator">The pattern which ends reciving message.</param>
+        /// <returns>ReadResult.</returns>
+        public ReadResult Read(int count, byte[] terminator)
+        {
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (terminator == null) throw new ArgumentException("Terminator must be not null.");
+            if (terminator.Length == 0) throw new ArgumentException("Terminator length must be grater than 0.");
+            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
+            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
+            return ReadWithTimeoutAndTerminatorInternal(-1, count, terminator);
+        }
+
         #endregion
 
         #region ReadWithTimeout
@@ -577,6 +594,25 @@ namespace CavemanTcp
             if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
             if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
             return ReadWithTimeoutInternal(timeoutMs, count);
+        }
+
+        /// <summary>
+        /// Read from the server.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <param name="terminator">The pattern which ends reciving message.</param>
+        /// <returns>ReadResult.</returns>
+        public ReadResult ReadWithTimeout(int timeoutMs, int count, byte[] terminator)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (terminator == null) throw new ArgumentException("Terminator must be not null.");
+            if (terminator.Length == 0) throw new ArgumentException("Terminator length must be grater than 0.");
+            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
+            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
+            return ReadWithTimeoutAndTerminatorInternal(timeoutMs, count, terminator);
         }
 
         #endregion
@@ -599,6 +635,25 @@ namespace CavemanTcp
             return await ReadWithoutTimeoutInternalAsync(count, token).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Read from the server.
+        /// </summary>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <param name="terminator">The pattern which ends reciving message.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
+        /// <returns>ReadResult.</returns>
+        public async Task<ReadResult> ReadAsync(int count, byte[] terminator, CancellationToken token = default)
+        {
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (terminator == null) throw new ArgumentException("Terminator must be not null.");
+            if (terminator.Length == 0) throw new ArgumentException("Terminator length must be grater than 0.");
+            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
+            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
+            if (token == default(CancellationToken)) token = _Token;
+            return await ReadWithoutTimeoutAndWithTerminatorInternalAsync(count, terminator, token).ConfigureAwait(false);
+        }
+
         #endregion
 
         #region ReadWithTimeoutAsync
@@ -619,6 +674,27 @@ namespace CavemanTcp
             if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
             if (token == default(CancellationToken)) token = _Token;
             return await ReadWithTimeoutInternalAsync(timeoutMs, count, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Read from the server.
+        /// </summary>
+        /// <param name="timeoutMs">The number of milliseconds to wait before timing out the operation.  -1 indicates no timeout, otherwise the value must be a non-zero positive integer.</param>
+        /// <param name="count">The number of bytes to read.</param>
+        /// <param name="terminator">The pattern which ends reciving message.</param>
+        /// <param name="token">Cancellation token for canceling the request.</param>
+        /// <returns>ReadResult.</returns>
+        public async Task<ReadResult> ReadWithTimeoutAsync(int timeoutMs, int count, byte[] terminator, CancellationToken token = default)
+        {
+            if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
+            if (count < 1) throw new ArgumentException("Count must be greater than zero.");
+            if (terminator == null) throw new ArgumentException("Terminator must be not null.");
+            if (terminator.Length == 0) throw new ArgumentException("Terminator length must be grater than 0.");
+            if (_Client == null || !_Client.Connected) throw new IOException("Client is not connected.");
+            if (!_NetworkStream.CanRead) throw new IOException("Cannot read from network stream.");
+            if (_Ssl && !_SslStream.CanRead) throw new IOException("Cannot read from SSL stream.");
+            if (token == default(CancellationToken)) token = _Token;
+            return await ReadWithTimeoutAndTerminatorInternalAsync(timeoutMs, count, terminator, token).ConfigureAwait(false);
         }
 
         #endregion
@@ -1362,6 +1438,112 @@ namespace CavemanTcp
             }
         }
 
+
+        private ReadResult ReadWithTimeoutAndTerminatorInternal(int timeoutMs, long count, byte[] terminator)
+        {
+            CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_Token);
+            CancellationToken timeoutToken = timeoutCts.Token;
+
+            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
+
+            while (!_ReadSemaphore.Wait(10))
+            {
+                Task.Delay(10).Wait();
+            }
+
+            Task<ReadResult> task = Task.Run(() =>
+            {
+                try
+                {
+                    MemoryStream ms = new MemoryStream();
+                    // Moved here to be available/reachable if timeout or cancellation occurs
+                    result.DataStream = ms;
+                    long bytesRemaining = count;
+
+                    while (bytesRemaining > 0)
+                    {
+                        byte[] buffer = null;
+                        if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
+                        else buffer = new byte[bytesRemaining];
+
+                        int bytesRead = 0;
+                        if (!_Ssl) bytesRead = _NetworkStream.Read(buffer, 0, buffer.Length);
+                        else bytesRead = _SslStream.Read(buffer, 0, buffer.Length);
+
+                        if (bytesRead > 0)
+                        {
+                            ms.Write(buffer, 0, bytesRead);
+                            result.BytesRead += bytesRead;
+                            _Statistics.AddReceivedBytes(bytesRead);
+                            bytesRemaining -= bytesRead;
+
+                            // if we didn't reach to target byte count check for existance of terminator pattern
+                            if (bytesRemaining > 0)
+                            {
+                                // index of terminator pattern
+                                var indexOfTerminator = ms.ToArray().Contains(terminator);
+
+                                // if stream contains pattern ignore bytes after pattern and finish reading from socket
+                                if (indexOfTerminator != -1)
+                                {
+                                    ms.SetLength(indexOfTerminator + terminator.Length);
+                                    bytesRemaining = 0;
+
+                                }
+                            }
+                        }
+                    }
+
+                    ms.Seek(0, SeekOrigin.Begin);
+                    return result;
+                }
+                catch (TaskCanceledException)
+                {
+                    result.Status = ReadResultStatus.Canceled;
+                    return result;
+                }
+                catch (OperationCanceledException)
+                {
+                    result.Status = ReadResultStatus.Canceled;
+                    return result;
+                }
+                catch (Exception)
+                {
+                    _IsConnected = false;
+                    result.Status = ReadResultStatus.Disconnected;
+                    result.DataStream = null;
+                    return result;
+                }
+            }, timeoutToken);
+
+            bool success = task.Wait(TimeSpan.FromMilliseconds(timeoutMs));
+            timeoutCts.Cancel();
+
+            _ReadSemaphore.Release();
+
+            if (success)
+            {
+                return task.Result;
+            }
+            else
+            {
+                result.Status = ReadResultStatus.Timeout;
+
+                // if MemoryStream contains data, seek to origin for making it usable by ReadResult
+                if (result.DataStream.Length > 0)
+                {
+                    result.DataStream.Seek(0, SeekOrigin.Begin);
+                }
+                else
+                {
+                    result.DataStream.Dispose();
+                    result.DataStream = null;
+                }
+
+                return result;
+            }
+        }
+
         // Supplied cancellation token
         private async Task<ReadResult> ReadWithoutTimeoutInternalAsync(long count, CancellationToken token)
         {
@@ -1423,6 +1605,95 @@ namespace CavemanTcp
             {
                 _ReadSemaphore.Release();
             } 
+        }
+
+        private async Task<ReadResult> ReadWithoutTimeoutAndWithTerminatorInternalAsync(long count, byte[] terminator, CancellationToken token)
+        {
+            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
+
+            try
+            {
+                while (true)
+                {
+                    bool success = await _ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
+                    if (success) break;
+                    await Task.Delay(10).ConfigureAwait(false);
+                }
+
+                MemoryStream ms = new MemoryStream();
+                // Moved here to make stream available/reachable if cancellation occurs
+                result.DataStream = ms;
+                long bytesRemaining = count;
+
+                while (bytesRemaining > 0)
+                {
+                    byte[] buffer = null;
+                    if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
+                    else buffer = new byte[bytesRemaining];
+
+                    int bytesRead = 0;
+                    if (!_Ssl) bytesRead = await _NetworkStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+                    else bytesRead = await _SslStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+
+                    if (bytesRead > 0)
+                    {
+                        await ms.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
+                        result.BytesRead += bytesRead;
+                        _Statistics.AddReceivedBytes(bytesRead);
+                        bytesRemaining -= bytesRead;
+
+                        // if we didn't reach to target byte count check for existance of terminator pattern
+                        if (bytesRemaining > 0)
+                        {
+                            // index of terminator pattern
+                            var indexOfTerminator = ms.ToArray().Contains(terminator);
+
+                            // if stream contains pattern ignore bytes after pattern and finish reading from socket
+                            if (indexOfTerminator != -1)
+                            {
+                                ms.SetLength(indexOfTerminator + terminator.Length);
+                                bytesRemaining = 0;
+                            }
+                        }
+                    }
+                }
+
+                // not needed anymore
+                //ms.Seek(0, SeekOrigin.Begin);
+                return result;
+            }
+            catch (TaskCanceledException)
+            {
+                result.Status = ReadResultStatus.Canceled;
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                result.Status = ReadResultStatus.Canceled;
+                return result;
+            }
+            catch (Exception)
+            {
+                _IsConnected = false;
+                result.Status = ReadResultStatus.Disconnected;
+                result.DataStream = null;
+                return result;
+            }
+            finally
+            {
+                // if MemoryStream contains data, seek to origin for making it usable by ReadResult
+                if (result.DataStream.Length > 0)
+                {
+                    result.DataStream.Seek(0, SeekOrigin.Begin);
+                }
+                else
+                {
+                    result.DataStream.Dispose();
+                    result.DataStream = null;
+                }
+
+                _ReadSemaphore.Release();
+            }
         }
 
         // Supplied cancellation token, timeout cancellation token
@@ -1506,6 +1777,115 @@ namespace CavemanTcp
                     result.Status = ReadResultStatus.Timeout;
                     return result;
                 }
+            }
+        }
+
+        private async Task<ReadResult> ReadWithTimeoutAndTerminatorInternalAsync(int timeoutMs, long count, byte[] terminator, CancellationToken token)
+        {
+            CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, token);
+            CancellationToken timeoutToken = timeoutCts.Token;
+
+            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
+
+            while (true)
+            {
+                bool success = await _ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
+                if (success) break;
+                await Task.Delay(10, token).ConfigureAwait(false);
+            }
+
+            Task<ReadResult> task = Task.Run(async () =>
+            {
+                try
+                {
+                    MemoryStream ms = new MemoryStream();
+
+                    // Moved here to be available/reachable if timeout or cancellation occurs
+                    result.DataStream = ms;
+                    long bytesRemaining = count;
+
+                    while (bytesRemaining > 0)
+                    {
+                        byte[] buffer = null;
+                        if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
+                        else buffer = new byte[bytesRemaining];
+
+                        int bytesRead = 0;
+                        if (!_Ssl) bytesRead = await _NetworkStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+                        else bytesRead = await _SslStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+
+                        if (bytesRead > 0)
+                        {
+                            result.BytesRead += bytesRead;
+                            await ms.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
+                            _Statistics.AddReceivedBytes(bytesRead);
+                            bytesRemaining -= bytesRead;
+
+                            // if we didn't reach to target byte count check for existance of terminator pattern
+                            if (bytesRemaining > 0)
+                            {
+                                // index of terminator pattern
+                                var indexOfTerminator = ms.ToArray().Contains(terminator);
+
+                                // if stream contains pattern ignore bytes after pattern and finish reading from socket
+                                if (indexOfTerminator != -1)
+                                {
+                                    ms.SetLength(indexOfTerminator + terminator.Length);
+                                    bytesRemaining = 0;
+                                }
+                            }
+                        }
+                    }
+
+                    ms.Seek(0, SeekOrigin.Begin);
+                    return result;
+                }
+                catch (TaskCanceledException)
+                {
+                    result.Status = ReadResultStatus.Canceled;
+                    return result;
+                }
+                catch (OperationCanceledException)
+                {
+                    result.Status = ReadResultStatus.Canceled;
+                    return result;
+                }
+                catch (Exception)
+                {
+                    _IsConnected = false;
+                    result.Status = ReadResultStatus.Disconnected;
+                    result.DataStream = null;
+                    return result;
+                }
+            },
+            timeoutToken);
+
+            Task delay = Task.Delay(timeoutMs, token);
+            Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
+            timeoutCts.Cancel();
+
+            _ReadSemaphore.Release();
+
+            if (first == task)
+            {
+                return task.Result;
+            }
+            else
+            {
+                result.Status = ReadResultStatus.Timeout;
+
+                // if MemoryStream contains data, seek to origin for making it usable by ReadResult
+                if (result.DataStream.Length > 0)
+                {
+                    result.DataStream.Seek(0, SeekOrigin.Begin);
+                }
+                else
+                {
+                    result.DataStream.Dispose();
+                    result.DataStream = null;
+                }
+
+                return result;
             }
         }
 

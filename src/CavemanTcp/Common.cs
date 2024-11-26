@@ -65,5 +65,64 @@ namespace CavemanTcp
                 port = Convert.ToInt32(ipPort.Substring(colonIndex + 1));
             }
         }
+
+        /// <summary>
+        /// Determines whether a byte array contains the specified sequence of bytes.
+        /// </summary>
+        /// <param name="caller">The byte array to be searched.</param>
+        /// <param name="array">The byte to be found.</param>
+        /// <returns>The first location of the sequence within the array, -1 if the sequence is not found.</returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentException"></exception>
+        internal static int Contains(this byte[] caller, byte[] array)
+        {
+            byte startValue, endValue;
+            int result, arrayLength, searchBoundary, j, startLocation, endOffset;
+
+            if (caller == null)
+                throw new ArgumentNullException($"{nameof(caller)}");
+            if (array == null)
+                throw new ArgumentNullException($"{nameof(array)}");
+            if (caller.Length == 0 || array.Length == 0)
+                throw new ArgumentException($"Argument {(caller.Length == 0 ? nameof(caller) : nameof(array))} is empty.");
+
+            if (array.Length > caller.Length)
+                return -1;
+
+            startValue = array[0];
+            arrayLength = array.Length;
+
+            if (arrayLength > 1)
+            {
+                result = -1;
+                endOffset = arrayLength - 1;
+                endValue = array[endOffset];
+                searchBoundary = caller.Length - arrayLength;
+                startLocation = -1;
+
+                while ((startLocation = Array.IndexOf(caller, startValue, startLocation + 1)) >= 0)
+                {
+                    if (startLocation > searchBoundary)
+                        break;
+
+                    if (caller[startLocation + endOffset] == endValue)
+                    {
+                        for (j = 1; j < endOffset && caller[startLocation + j] == array[j]; j++) { }
+
+                        if (j == endOffset)
+                        {
+                            result = startLocation;
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                result = Array.IndexOf(caller, startValue);
+            }
+
+            return result;
+        }
     }
 }
