@@ -1,10 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-
-namespace CavemanTcp
+﻿namespace CavemanTcp
 {
+    using System;
+    using System.Collections.Generic;
+    using System.IO;
+    using System.Text;
+
     /// <summary>
     /// Result of a write operation.
     /// </summary>

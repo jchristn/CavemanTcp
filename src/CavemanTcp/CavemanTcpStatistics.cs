@@ -1,10 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading;
-
-namespace CavemanTcp
+﻿namespace CavemanTcp
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Text;
+    using System.Threading;
+
     /// <summary>
     /// CavemanTcp statistics.
     /// </summary>

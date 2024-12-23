@@ -1,9 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace CavemanTcp
+﻿namespace CavemanTcp
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Text;
+
     /// <summary>
     /// CavemanTcp keepalive settings.
     /// Keepalive probes are sent after an idle period defined by TcpKeepAliveTime (seconds).

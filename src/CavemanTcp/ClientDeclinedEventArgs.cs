@@ -1,9 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace CavemanTcp
+﻿namespace CavemanTcp
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Text;
+
     /// <summary>
     /// Arguments for situations where client connections are declined.
     /// </summary>
