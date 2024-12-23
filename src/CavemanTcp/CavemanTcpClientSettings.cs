@@ -33,6 +33,20 @@ namespace CavemanTcp
         public bool AcceptInvalidCertificates { get; set; } = true;
 
         /// <summary>
+        /// Enable or disable this to tell the TcpClient perform certificate revocation checks.  This is not to be confused
+        ///  with AcceptInvalidCertificates setting which decides whether to ignore issues that arise in the call back during the
+        ///  authentication phase.
+        /// 
+        /// With this setting on, in addition to the certificate validation the client performs a revocation check by using either
+        ///  the Certificate Revocation List (CRL) or the Online Certificate Status Protocol (OCSP).
+        ///  This may not always be needed, which is why this option is exposed here.
+        /// 
+        /// By default this value is set to false.  If AcceptInvalidCertificates is set to true, then this value will be
+        ///  set to false at runtime. 
+        /// </summary>
+        public bool CheckCertificateRevocation { get; set; } = false;
+
+        /// <summary>
         /// Enable or disable mutual authentication of SSL client and server.
         /// </summary>
         public bool MutuallyAuthenticate { get; set; } = false;
