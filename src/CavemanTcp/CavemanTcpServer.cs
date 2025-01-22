@@ -879,14 +879,14 @@
                 if (client.Client != null && client.Client.Client != null && client.Client.Client.LocalEndPoint != null)
                     ep = client.Client.Client.LocalEndPoint;
 
-                RemoveAndDisposeClient(guid);
                 _Events.HandleClientDisconnected(
-                    this, 
+                    this,
                     new ClientDisconnectedEventArgs(
-                        client, 
+                        client,
                         ep,
                         DisconnectReason.Kicked));
-            }
+
+                RemoveAndDisposeClient(guid);            }
         }
 
         #endregion
