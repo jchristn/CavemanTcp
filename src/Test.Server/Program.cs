@@ -181,9 +181,7 @@ namespace Test.Server
 
             _Server.Events.ClientDisconnected += (s, e) =>
             {
-                Console.WriteLine(
-                    "Client " + e.Client.ToString() + " " +
-                    "disconnected from server on " + (e.LocalEndpoint != null ? e.LocalEndpoint.ToString() : "(unknown)"));
+                Console.WriteLine("Client " + e.Client.ToString() + " disconnected from server");
             };
         }
 

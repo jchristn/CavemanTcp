@@ -959,11 +959,6 @@
             Client metadata.
             </summary>
         </member>
-        <member name="P:CavemanTcp.ClientDisconnectedEventArgs.LocalEndpoint">
-            <summary>
-            Local endpoint.
-            </summary>
-        </member>
         <member name="P:CavemanTcp.ClientDisconnectedEventArgs.Reason">
             <summary>
             The reason for the disconnection.

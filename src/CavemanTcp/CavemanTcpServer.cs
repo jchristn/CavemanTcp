@@ -875,18 +875,10 @@
             ClientMetadata client = GetClient(guid);
             if (client != null)
             {
-                EndPoint ep = null;
-                if (client.Client != null && client.Client.Client != null && client.Client.Client.LocalEndPoint != null)
-                    ep = client.Client.Client.LocalEndPoint;
+                _Events.HandleClientDisconnected(this, new ClientDisconnectedEventArgs(client, DisconnectReason.Kicked));
 
-                _Events.HandleClientDisconnected(
-                    this,
-                    new ClientDisconnectedEventArgs(
-                        client,
-                        ep,
-                        DisconnectReason.Kicked));
-
-                RemoveAndDisposeClient(guid);            }
+                RemoveAndDisposeClient(guid);            
+            }
         }
 
         #endregion
