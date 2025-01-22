@@ -17,11 +17,12 @@ namespace Test.HttpLoopback
 
         static string _HttpResponse =
             "HTTP/1.1 200 OK\r\n" +
-            "Content-Length: 0\r\n" +
+            "Content-Length: 11\r\n" +
             "Server: CavemanTcp\r\n" +
             "Access-Control-Allow-Origin: *\r\n" +
             "Date: " + DateTime.Now.ToString("ddd, dd MMM yyy HH’:’mm’:’ss ‘GMT’") + "\r\n" +
-            "\r\n";
+            "\r\n" +
+            "Hello world";
 
         static void Main(string[] args)
         {
