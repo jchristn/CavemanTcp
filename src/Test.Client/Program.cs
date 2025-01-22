@@ -7,12 +7,15 @@ namespace Test.Client
     class Program
     {
         static bool _RunForever = true;
+        static string _Hostname = "127.0.0.1";
+        static int _Port = 9000;
+        static bool _Ssl = false;
         static CavemanTcpClient _Client = null;
 
         static void Main(string[] args)
         {
             InitializeClient(); 
-            Console.WriteLine("Connecting to tcp://127.0.0.1:8000");
+            Console.WriteLine("Connecting to tcp://" +_Hostname + ":" + _Port);
             _Client.Connect(10);
             
             while (_RunForever)
@@ -132,8 +135,7 @@ namespace Test.Client
          
         static void InitializeClient()
         {
-            // _Client = new CavemanTcpClient("127.0.0.1", 8000, false, null, null);
-            _Client = new CavemanTcpClient("127.0.0.1:8000");
+            _Client = new CavemanTcpClient(_Hostname, _Port, _Ssl);
             _Client.Logger = Logger;
 
             _Client.Events.ClientConnected += (s, e) =>

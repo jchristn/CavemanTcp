@@ -9,6 +9,9 @@ namespace Test.ServerAsync
     class Program
     {
         static bool _RunForever = true;
+        static string _Hostname = "*";
+        static int _Port = 9000;
+        static bool _Ssl = false;
         static CavemanTcpServer _Server = null;
 
         static void Main(string[] args)
@@ -16,7 +19,13 @@ namespace Test.ServerAsync
             InitializeServer();
             _Server.Start();
 
-            Console.WriteLine("Listening on tcp://127.0.0.1:8000");
+            Console.WriteLine("Listening on " + (_Ssl ? "ssl://" : "tcp://") + _Hostname + ":" + _Port);
+            if (_Hostname.Equals("*")
+                || _Hostname.Equals("+")
+                || _Hostname.Equals("0.0.0.0"))
+            {
+                Console.WriteLine("This program must be run with administrative privileges due to the specified hostname");
+            }
 
             while (_RunForever)
             {
@@ -159,7 +168,7 @@ namespace Test.ServerAsync
 
         static void InitializeServer()
         {
-            _Server = new CavemanTcpServer("127.0.0.1", 8000, false, null, null);
+            _Server = new CavemanTcpServer(_Hostname, _Port, _Ssl, null, null);
             _Server.Logger = Logger;
 
             _Server.Events.ClientConnected += (s, e) =>

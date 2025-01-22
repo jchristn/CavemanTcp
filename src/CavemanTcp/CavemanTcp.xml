@@ -929,6 +929,11 @@
             Client metadata.
             </summary>
         </member>
+        <member name="P:CavemanTcp.ClientConnectedEventArgs.LocalEndpoint">
+            <summary>
+            Local endpoint.
+            </summary>
+        </member>
         <member name="T:CavemanTcp.ClientDeclinedEventArgs">
             <summary>
             Arguments for situations where client connections are declined.
@@ -952,6 +957,11 @@
         <member name="P:CavemanTcp.ClientDisconnectedEventArgs.Client">
             <summary>
             Client metadata.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.ClientDisconnectedEventArgs.LocalEndpoint">
+            <summary>
+            Local endpoint.
             </summary>
         </member>
         <member name="P:CavemanTcp.ClientDisconnectedEventArgs.Reason">

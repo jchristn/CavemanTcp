@@ -859,7 +859,7 @@
                         || state.State == TcpState.Closing
                         || state.State == TcpState.CloseWait)
                     {
-                        Logger?.Invoke(_Header + "TCP connection state: " + state.ToString());
+                        Logger?.Invoke(_Header + "TCP connection state: " + state.State.ToString());
                         return false;
                     }
                 }

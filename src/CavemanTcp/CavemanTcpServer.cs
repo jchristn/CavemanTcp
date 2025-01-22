@@ -876,7 +876,12 @@
             if (client != null)
             {
                 RemoveAndDisposeClient(guid);
-                _Events.HandleClientDisconnected(this, new ClientDisconnectedEventArgs(client, DisconnectReason.Kicked));
+                _Events.HandleClientDisconnected(
+                    this, 
+                    new ClientDisconnectedEventArgs(
+                        client, 
+                        client.Client.Client.LocalEndPoint,
+                        DisconnectReason.Kicked));
             }
         }
 
@@ -1208,8 +1213,10 @@
                 TcpConnectionInformation[] connections = properties.GetActiveTcpConnections();
 
                 var state = connections.FirstOrDefault(x =>
-                            x.LocalEndPoint.Equals(((IPEndPoint)client.Client.Client.LocalEndPoint).Port)
-                            && x.RemoteEndPoint.Port.Equals(((IPEndPoint)client.Client.Client.RemoteEndPoint).Port));
+                    x.LocalEndPoint.Address.Equals(((IPEndPoint)client.Client.Client.LocalEndPoint).Address)
+                    && x.LocalEndPoint.Port.Equals(((IPEndPoint)client.Client.Client.LocalEndPoint).Port)
+                    && x.RemoteEndPoint.Address.Equals(((IPEndPoint)client.Client.Client.RemoteEndPoint).Address)
+                    && x.RemoteEndPoint.Port.Equals(((IPEndPoint)client.Client.Client.RemoteEndPoint).Port));
 
                 if (state == null)
                 {
@@ -1406,7 +1413,10 @@
                     Task unawaited = Task.Run(() => ConnectionMonitor(client, token), token);
                 }
 
-                _Events.HandleClientConnected(this, new ClientConnectedEventArgs(client));
+                _Events.HandleClientConnected(this, 
+                    new ClientConnectedEventArgs(
+                        client,
+                        client.Client.Client.LocalEndPoint));
             }
             catch (TaskCanceledException)
             {

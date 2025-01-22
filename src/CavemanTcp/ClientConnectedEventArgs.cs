@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Net;
     using System.Text;
 
     /// <summary>
@@ -17,6 +18,11 @@
         /// </summary>
         public ClientMetadata Client { get; }
 
+        /// <summary>
+        /// Local endpoint.
+        /// </summary>
+        public EndPoint LocalEndpoint { get; }
+
         #endregion
 
         #region Private-Members
@@ -25,9 +31,10 @@
 
         #region Constructors-and-Factories
 
-        internal ClientConnectedEventArgs(ClientMetadata client)
+        internal ClientConnectedEventArgs(ClientMetadata client, EndPoint localEndpoint)
         {
             Client = client;
+            LocalEndpoint = localEndpoint;
         }
 
         #endregion

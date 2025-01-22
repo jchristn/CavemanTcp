@@ -10,7 +10,7 @@ namespace Test.Server
     {
         static bool _RunForever = true;
         static string _Hostname = "*";
-        static int _Port = 8000;
+        static int _Port = 9000;
         static bool _Ssl = false;
         static CavemanTcpServer _Server = null;
 
@@ -168,20 +168,22 @@ namespace Test.Server
 
         static void InitializeServer()
         {
-            // _Server = new CavemanTcpServer("*", 8000, false, null, null);
-            _Server = new CavemanTcpServer(_Hostname, _Port);
+            _Server = new CavemanTcpServer(_Hostname, _Port, _Ssl, null, null);
             _Server.Logger = Logger;
             _Server.Settings.MonitorClientConnections = true;
-            // _Server.Settings.MaxConnections = 1;
 
             _Server.Events.ClientConnected += (s, e) =>
             {
-                Console.WriteLine("Client " + e.Client.ToString() + " connected to server");
+                Console.WriteLine(
+                    "Client " + e.Client.ToString() + " " +
+                    "connected to server on " + (e.LocalEndpoint != null ? e.LocalEndpoint.ToString() : "(unknown)"));
             };
 
             _Server.Events.ClientDisconnected += (s, e) =>
             {
-                Console.WriteLine("Client " + e.Client.ToString() + " disconnected from server");
+                Console.WriteLine(
+                    "Client " + e.Client.ToString() + " " +
+                    "disconnected from server on " + (e.LocalEndpoint != null ? e.LocalEndpoint.ToString() : "(unknown)"));
             };
         }
 
