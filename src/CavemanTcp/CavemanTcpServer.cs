@@ -1134,6 +1134,10 @@
                         Environment.NewLine);
                     _Events.HandleExceptionEncountered(this, e);
                 }
+                finally
+                {
+                    _Events.ClearAllEventHandlers();
+                }
 
                 _IsListening = false;
 
