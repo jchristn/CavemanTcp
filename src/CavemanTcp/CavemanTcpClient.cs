@@ -722,6 +722,7 @@
                 }
                 finally
                 {
+                    _Events.ClearAllEventHandlers();
                     _ReadSemaphore.Release();
                     _WriteSemaphore.Release();
                 }

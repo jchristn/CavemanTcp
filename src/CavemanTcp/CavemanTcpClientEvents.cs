@@ -14,17 +14,29 @@
         /// <summary>
         /// Event to fire when the client connects.
         /// </summary>
-        public event EventHandler ClientConnected;
-
+        public event EventHandler ClientConnected
+        {
+            add => _ClientConnected += value;
+            remove => _ClientConnected -= value;
+        }
+        
         /// <summary>
         /// Event to fire when the client disconnects.
         /// </summary>
-        public event EventHandler ClientDisconnected;
-         
+        public event EventHandler ClientDisconnected
+        {
+            add => _ClientDisconnected += value;
+            remove => _ClientDisconnected -= value;
+        }
+
         /// <summary>
         /// Event to fire when an exception is encountered.
         /// </summary>
-        public event EventHandler<ExceptionEventArgs> ExceptionEncountered; 
+        public event EventHandler<ExceptionEventArgs> ExceptionEncountered
+        {
+            add => _ExceptionEncountered += value;
+            remove => _ExceptionEncountered -= value;
+        }
 
         #endregion
 
@@ -32,6 +44,10 @@
 
         private bool _ClientConnectedFiring = false;
         private bool _ClientDisconnectedFiring = false;
+
+        private EventHandler _ClientConnected;
+        private EventHandler _ClientDisconnected;
+        private EventHandler<ExceptionEventArgs> _ExceptionEncountered;
 
         #endregion
 
@@ -53,12 +69,19 @@
 
         #region Internal-Methods
 
+        internal void ClearAllEventHandlers()
+        {
+            _ClientConnected = null;
+            _ClientDisconnected = null;
+            _ExceptionEncountered = null;
+        }
+
         internal void HandleClientConnected(object sender)
         {
             if (_ClientConnectedFiring) return;
 
             _ClientConnectedFiring = true;
-            WrappedEventHandler(() => ClientConnected?.Invoke(sender, EventArgs.Empty), "ClientConnected", sender);
+            WrappedEventHandler(() => _ClientConnected?.Invoke(sender, EventArgs.Empty), "ClientConnected", sender);
             _ClientConnectedFiring = false;
         }
 
@@ -67,14 +90,14 @@
             if (_ClientDisconnectedFiring) return;
 
             _ClientDisconnectedFiring = true; 
-            WrappedEventHandler(() => ClientDisconnected?.Invoke(sender, EventArgs.Empty), "ClientDisconnected", sender);
+            WrappedEventHandler(() => _ClientDisconnected?.Invoke(sender, EventArgs.Empty), "ClientDisconnected", sender);
             _ClientDisconnectedFiring = false;
         }
 
         internal void HandleExceptionEncountered(object sender, Exception e)
         {
             ExceptionEventArgs args = new ExceptionEventArgs(e);
-            WrappedEventHandler(() => ExceptionEncountered?.Invoke(sender, args), "ExceptionEncountered", sender);
+            WrappedEventHandler(() => _ExceptionEncountered?.Invoke(sender, args), "ExceptionEncountered", sender);
         }
 
         #endregion
