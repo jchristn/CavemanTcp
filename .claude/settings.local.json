@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet --version:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet run:*)",
+      "Bash(powershell -Command \"(Get-Content Program.cs) | ForEach-Object { $_-replace ''new CavemanTcpServer\\(_hostname, _port, false, null, null\\)'', ''new CavemanTcpServer(_hostname, port, false, null, null)'' } | ForEach-Object { $_-replace ''new CavemanTcpClient\\(_hostname, _port, false, null, null\\)'', ''new CavemanTcpClient(_hostname, port, false, null, null)'' } | Set-Content Program.cs.tmp && mv -Force Program.cs.tmp Program.cs\")",
+      "Bash(powershell -File fix_ports.ps1)",
+      "Bash(powershell:*)",
+      "Bash(git checkout:*)",
+      "Bash([ -f Program.cs ])"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
