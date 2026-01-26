@@ -78,6 +78,11 @@ namespace Test.AutomatedTest
             Test_SendWithTimeout();
             Test_ReadWithTimeout();
 
+            // Cancellation tests
+            Test_ReadWithTimeoutAsync_Cancellation_Client();
+            Test_ReadWithTimeoutAsync_Cancellation_Server();
+            Test_ReadWithTimeoutAsync_Timeout_Client();
+
             // Async tests
             Test_AsyncSendReceive();
 
@@ -1157,6 +1162,184 @@ namespace Test.AutomatedTest
                 if (rr.BytesRead != data.Length)
                 {
                     _framework.RecordFailure(testName, $"Expected {data.Length} bytes, read {rr.BytesRead}");
+                    return;
+                }
+
+                _framework.RecordSuccess(testName);
+            }
+            catch (Exception ex)
+            {
+                _framework.RecordFailure(testName, ex.Message);
+            }
+            finally
+            {
+                client?.Dispose();
+                server?.Dispose();
+                Thread.Sleep(100);
+            }
+        }
+
+        static void Test_ReadWithTimeoutAsync_Cancellation_Client()
+        {
+            string testName = "ReadWithTimeoutAsync Cancellation (Client)";
+            CavemanTcpServer server = null;
+            CavemanTcpClient client = null;
+
+            try
+            {
+                int port = GetNextPort();
+                server = new CavemanTcpServer(_hostname, port, false, null, null);
+                server.Start();
+                Thread.Sleep(100);
+
+                client = new CavemanTcpClient(_hostname, port, false, null, null);
+                client.Connect(5);
+                Thread.Sleep(200);
+
+                // Set up: timeout is 10 seconds, but we cancel after 1 second
+                int timeoutMs = 10000;
+                int cancelDelayMs = 1000;
+                var cts = new CancellationTokenSource(cancelDelayMs);
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                // Try to read bytes that will never arrive - should be cancelled
+                Task<ReadResult> readTask = client.ReadWithTimeoutAsync(timeoutMs, 100, cts.Token);
+                readTask.Wait();
+                ReadResult rr = readTask.Result;
+
+                sw.Stop();
+
+                // Should return Canceled, not Timeout
+                if (rr.Status != ReadResultStatus.Canceled)
+                {
+                    _framework.RecordFailure(testName, $"Expected Canceled status, got {rr.Status}");
+                    return;
+                }
+
+                // Should complete in ~1 second (cancel time), not 10 seconds (timeout)
+                if (sw.ElapsedMilliseconds > 5000)
+                {
+                    _framework.RecordFailure(testName, $"Took too long ({sw.ElapsedMilliseconds}ms), cancellation may not have worked");
+                    return;
+                }
+
+                _framework.RecordSuccess(testName);
+            }
+            catch (Exception ex)
+            {
+                _framework.RecordFailure(testName, ex.Message);
+            }
+            finally
+            {
+                client?.Dispose();
+                server?.Dispose();
+                Thread.Sleep(100);
+            }
+        }
+
+        static void Test_ReadWithTimeoutAsync_Cancellation_Server()
+        {
+            string testName = "ReadWithTimeoutAsync Cancellation (Server)";
+            CavemanTcpServer server = null;
+            CavemanTcpClient client = null;
+
+            try
+            {
+                int port = GetNextPort();
+                server = new CavemanTcpServer(_hostname, port, false, null, null);
+                server.Start();
+                Thread.Sleep(100);
+
+                client = new CavemanTcpClient(_hostname, port, false, null, null);
+                client.Connect(5);
+                Thread.Sleep(200);
+
+                var clients = server.GetClients().ToList();
+                Guid clientGuid = clients[0].Guid;
+
+                // Set up: timeout is 10 seconds, but we cancel after 1 second
+                int timeoutMs = 10000;
+                int cancelDelayMs = 1000;
+                var cts = new CancellationTokenSource(cancelDelayMs);
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                // Try to read bytes that will never arrive - should be cancelled
+                Task<ReadResult> readTask = server.ReadWithTimeoutAsync(timeoutMs, clientGuid, 100, cts.Token);
+                readTask.Wait();
+                ReadResult rr = readTask.Result;
+
+                sw.Stop();
+
+                // Should return Canceled, not Timeout
+                if (rr.Status != ReadResultStatus.Canceled)
+                {
+                    _framework.RecordFailure(testName, $"Expected Canceled status, got {rr.Status}");
+                    return;
+                }
+
+                // Should complete in ~1 second (cancel time), not 10 seconds (timeout)
+                if (sw.ElapsedMilliseconds > 5000)
+                {
+                    _framework.RecordFailure(testName, $"Took too long ({sw.ElapsedMilliseconds}ms), cancellation may not have worked");
+                    return;
+                }
+
+                _framework.RecordSuccess(testName);
+            }
+            catch (Exception ex)
+            {
+                _framework.RecordFailure(testName, ex.Message);
+            }
+            finally
+            {
+                client?.Dispose();
+                server?.Dispose();
+                Thread.Sleep(100);
+            }
+        }
+
+        static void Test_ReadWithTimeoutAsync_Timeout_Client()
+        {
+            string testName = "ReadWithTimeoutAsync Timeout (Client)";
+            CavemanTcpServer server = null;
+            CavemanTcpClient client = null;
+
+            try
+            {
+                int port = GetNextPort();
+                server = new CavemanTcpServer(_hostname, port, false, null, null);
+                server.Start();
+                Thread.Sleep(100);
+
+                client = new CavemanTcpClient(_hostname, port, false, null, null);
+                client.Connect(5);
+                Thread.Sleep(200);
+
+                // Set up: timeout is 1 second, no cancellation
+                int timeoutMs = 1000;
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                // Try to read bytes that will never arrive - should timeout
+                Task<ReadResult> readTask = client.ReadWithTimeoutAsync(timeoutMs, 100);
+                readTask.Wait();
+                ReadResult rr = readTask.Result;
+
+                sw.Stop();
+
+                // Should return Timeout (not Canceled since no token was cancelled)
+                if (rr.Status != ReadResultStatus.Timeout)
+                {
+                    _framework.RecordFailure(testName, $"Expected Timeout status, got {rr.Status}");
+                    return;
+                }
+
+                // Should complete in ~1 second (timeout time)
+                if (sw.ElapsedMilliseconds < 800 || sw.ElapsedMilliseconds > 3000)
+                {
+                    _framework.RecordFailure(testName, $"Unexpected duration ({sw.ElapsedMilliseconds}ms), expected ~1000ms");
                     return;
                 }
 

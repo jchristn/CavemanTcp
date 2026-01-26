@@ -675,6 +675,23 @@
 
         #region Private-Methods
 
+        private static X509Certificate2 LoadCertificateFromFile(string filename, string password)
+        {
+#if NET9_0_OR_GREATER
+            if (String.IsNullOrEmpty(password))
+                return X509CertificateLoader.LoadPkcs12FromFile(filename, null);
+            else
+                return X509CertificateLoader.LoadPkcs12FromFile(filename, password);
+#else
+#pragma warning disable SYSLIB0057
+            if (String.IsNullOrEmpty(password))
+                return new X509Certificate2(filename);
+            else
+                return new X509Certificate2(filename, password);
+#pragma warning restore SYSLIB0057
+#endif
+        }
+
         /// <summary>
         /// Dispose of the TCP client.
         /// </summary>
@@ -798,14 +815,7 @@
                 }
                 else
                 {
-                    if (String.IsNullOrEmpty(_PfxPassword))
-                    {
-                        _SslCertificate = new X509Certificate2(_PfxCertFilename);
-                    }
-                    else
-                    {
-                        _SslCertificate = new X509Certificate2(_PfxCertFilename, _PfxPassword);
-                    }
+                    _SslCertificate = LoadCertificateFromFile(_PfxCertFilename, _PfxPassword);
 
                     _SslCertificateCollection = new X509Certificate2Collection
                     {
@@ -1620,6 +1630,12 @@
                 }
                 else
                 {
+                    if (token.IsCancellationRequested)
+                    {
+                        result.Status = ReadResultStatus.Canceled;
+                        return result;
+                    }
+
                     result.Status = ReadResultStatus.Timeout;
                     return result;
                 }
