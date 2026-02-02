@@ -2,17 +2,17 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>netstandard2.0;netstandard2.1;net462;net472;net48;net8.0;net10.0</TargetFrameworks>
-		<Version>2.0.12</Version>
+		<Version>2.0.13</Version>
 		<Authors>Joel Christner</Authors>
 		<Description>CavemanTcp is a simple TCP client and server providing easy integration and full control over network reads and writes, allowing you to build your own state machines with ease.</Description>
 		<PackageReleaseNotes>Fix status issue related to cancellation</PackageReleaseNotes>
 		
-		<Copyright>(c)2025 Joel Christner</Copyright>
+		<Copyright>(c)2026 Joel Christner</Copyright>
 		<PackageLicenseUrl></PackageLicenseUrl>
 		<PackageProjectUrl>https://github.com/jchristn/cavemantcp</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/jchristn/cavemantcp</RepositoryUrl>
 		<RepositoryType>Github</RepositoryType>
-		<PackageTags>tcp messaging socket message sockets api rpc</PackageTags>
+		<PackageTags>tcp;messaging;socket;message;sockets;api;rpc;state;machine</PackageTags>
 		<PackageId>CavemanTcp</PackageId>
 		<Product>CavemanTcp</Product>
 		<PackageIconUrl></PackageIconUrl>

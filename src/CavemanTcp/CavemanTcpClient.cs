@@ -1382,6 +1382,14 @@
                         _Statistics.AddReceivedBytes(bytesRead);
                         bytesRemaining -= bytesRead;
                     }
+                    else
+                    {
+                        // Zero bytes read indicates graceful disconnect
+                        _IsConnected = false;
+                        result.Status = ReadResultStatus.Disconnected;
+                        result.DataStream = null;
+                        return result;
+                    }
                 }
 
                 ms.Seek(0, SeekOrigin.Begin);
@@ -1408,7 +1416,7 @@
             finally
             {
                 _ReadSemaphore.Release();
-            } 
+            }
         }
 
         // Timeout cancellation token
@@ -1447,6 +1455,14 @@
                             result.BytesRead += bytesRead;
                             _Statistics.AddReceivedBytes(bytesRead);
                             bytesRemaining -= bytesRead;
+                        }
+                        else
+                        {
+                            // Zero bytes read indicates graceful disconnect
+                            _IsConnected = false;
+                            result.Status = ReadResultStatus.Disconnected;
+                            result.DataStream = null;
+                            return result;
                         }
                     }
 
@@ -1523,6 +1539,14 @@
                         _Statistics.AddReceivedBytes(bytesRead);
                         bytesRemaining -= bytesRead;
                     }
+                    else
+                    {
+                        // Zero bytes read indicates graceful disconnect
+                        _IsConnected = false;
+                        result.Status = ReadResultStatus.Disconnected;
+                        result.DataStream = null;
+                        return result;
+                    }
                 }
 
                 ms.Seek(0, SeekOrigin.Begin);
@@ -1549,7 +1573,7 @@
             finally
             {
                 _ReadSemaphore.Release();
-            } 
+            }
         }
 
         // Supplied cancellation token, timeout cancellation token
@@ -1591,6 +1615,14 @@
                                 result.BytesRead += bytesRead;
                                 _Statistics.AddReceivedBytes(bytesRead);
                                 bytesRemaining -= bytesRead;
+                            }
+                            else
+                            {
+                                // Zero bytes read indicates graceful disconnect
+                                _IsConnected = false;
+                                result.Status = ReadResultStatus.Disconnected;
+                                result.DataStream = null;
+                                return result;
                             }
                         }
 

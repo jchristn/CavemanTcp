@@ -1868,6 +1868,14 @@
                         _Statistics.AddReceivedBytes(bytesRead);
                         bytesRemaining -= bytesRead;
                     }
+                    else
+                    {
+                        // Zero bytes read indicates graceful disconnect
+                        result.Status = ReadResultStatus.Disconnected;
+                        result.DataStream = null;
+                        RemoveAndDisposeClient(guid);
+                        return result;
+                    }
                 }
 
                 ms.Seek(0, SeekOrigin.Begin);
@@ -1939,6 +1947,14 @@
                             result.BytesRead += bytesRead;
                             _Statistics.AddReceivedBytes(bytesRead);
                             bytesRemaining -= bytesRead;
+                        }
+                        else
+                        {
+                            // Zero bytes read indicates graceful disconnect
+                            result.Status = ReadResultStatus.Disconnected;
+                            result.DataStream = null;
+                            RemoveAndDisposeClient(guid);
+                            return result;
                         }
                     }
 
@@ -2022,6 +2038,14 @@
                         _Statistics.AddReceivedBytes(bytesRead);
                         bytesRemaining -= bytesRead;
                     }
+                    else
+                    {
+                        // Zero bytes read indicates graceful disconnect
+                        result.Status = ReadResultStatus.Disconnected;
+                        result.DataStream = null;
+                        RemoveAndDisposeClient(guid);
+                        return result;
+                    }
                 }
 
                 ms.Seek(0, SeekOrigin.Begin);
@@ -2095,6 +2119,14 @@
                             result.BytesRead += bytesRead;
                             _Statistics.AddReceivedBytes(bytesRead);
                             bytesRemaining -= bytesRead;
+                        }
+                        else
+                        {
+                            // Zero bytes read indicates graceful disconnect
+                            result.Status = ReadResultStatus.Disconnected;
+                            result.DataStream = null;
+                            RemoveAndDisposeClient(guid);
+                            return result;
                         }
                     }
 
