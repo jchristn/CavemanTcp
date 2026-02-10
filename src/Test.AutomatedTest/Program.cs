@@ -86,6 +86,10 @@ namespace Test.AutomatedTest
             Test_ReadWithTimeoutAsync_Cancellation_Client();
             Test_ReadWithTimeoutAsync_Cancellation_Server();
             Test_ReadWithTimeoutAsync_Timeout_Client();
+            Test_ReadAsync_Cancellation_Client();
+            Test_ReadAsync_Cancellation_Server();
+            Test_SendAsync_Cancellation_Client();
+            Test_SendAsync_Cancellation_Server();
 
             // Async tests
             Test_AsyncSendReceive();
@@ -1597,6 +1601,232 @@ namespace Test.AutomatedTest
                 {
                     _framework.RecordFailure(testName, $"Unexpected duration ({sw.ElapsedMilliseconds}ms), expected ~1000ms");
                     return;
+                }
+
+                _framework.RecordSuccess(testName);
+            }
+            catch (Exception ex)
+            {
+                _framework.RecordFailure(testName, ex.Message);
+            }
+            finally
+            {
+                client?.Dispose();
+                server?.Dispose();
+                Thread.Sleep(100);
+            }
+        }
+
+        static void Test_ReadAsync_Cancellation_Client()
+        {
+            string testName = "ReadAsync Cancellation (Client)";
+            CavemanTcpServer server = null;
+            CavemanTcpClient client = null;
+
+            try
+            {
+                int port = GetNextPort();
+                server = new CavemanTcpServer(_hostname, port, false, null, null);
+                server.Start();
+                Thread.Sleep(100);
+
+                client = new CavemanTcpClient(_hostname, port, false, null, null);
+                client.Connect(5);
+                Thread.Sleep(200);
+
+                // Cancel after 1 second
+                int cancelDelayMs = 1000;
+                var cts = new CancellationTokenSource(cancelDelayMs);
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                // Try to read bytes that will never arrive - should be cancelled
+                Task<ReadResult> readTask = client.ReadAsync(100, cts.Token);
+                readTask.Wait();
+                ReadResult rr = readTask.Result;
+
+                sw.Stop();
+
+                if (rr.Status != ReadResultStatus.Canceled)
+                {
+                    _framework.RecordFailure(testName, $"Expected Canceled status, got {rr.Status}");
+                    return;
+                }
+
+                if (sw.ElapsedMilliseconds > 5000)
+                {
+                    _framework.RecordFailure(testName, $"Took too long ({sw.ElapsedMilliseconds}ms), cancellation may not have worked");
+                    return;
+                }
+
+                _framework.RecordSuccess(testName);
+            }
+            catch (Exception ex)
+            {
+                _framework.RecordFailure(testName, ex.Message);
+            }
+            finally
+            {
+                client?.Dispose();
+                server?.Dispose();
+                Thread.Sleep(100);
+            }
+        }
+
+        static void Test_ReadAsync_Cancellation_Server()
+        {
+            string testName = "ReadAsync Cancellation (Server)";
+            CavemanTcpServer server = null;
+            CavemanTcpClient client = null;
+
+            try
+            {
+                int port = GetNextPort();
+                server = new CavemanTcpServer(_hostname, port, false, null, null);
+                server.Start();
+                Thread.Sleep(100);
+
+                client = new CavemanTcpClient(_hostname, port, false, null, null);
+                client.Connect(5);
+                Thread.Sleep(200);
+
+                var clients = server.GetClients().ToList();
+                Guid clientGuid = clients[0].Guid;
+
+                // Cancel after 1 second
+                int cancelDelayMs = 1000;
+                var cts = new CancellationTokenSource(cancelDelayMs);
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                // Try to read bytes that will never arrive - should be cancelled
+                Task<ReadResult> readTask = server.ReadAsync(clientGuid, 100, cts.Token);
+                readTask.Wait();
+                ReadResult rr = readTask.Result;
+
+                sw.Stop();
+
+                if (rr.Status != ReadResultStatus.Canceled)
+                {
+                    _framework.RecordFailure(testName, $"Expected Canceled status, got {rr.Status}");
+                    return;
+                }
+
+                if (sw.ElapsedMilliseconds > 5000)
+                {
+                    _framework.RecordFailure(testName, $"Took too long ({sw.ElapsedMilliseconds}ms), cancellation may not have worked");
+                    return;
+                }
+
+                _framework.RecordSuccess(testName);
+            }
+            catch (Exception ex)
+            {
+                _framework.RecordFailure(testName, ex.Message);
+            }
+            finally
+            {
+                client?.Dispose();
+                server?.Dispose();
+                Thread.Sleep(100);
+            }
+        }
+
+        static void Test_SendAsync_Cancellation_Client()
+        {
+            string testName = "SendAsync Cancellation (Client)";
+            CavemanTcpServer server = null;
+            CavemanTcpClient client = null;
+
+            try
+            {
+                int port = GetNextPort();
+                server = new CavemanTcpServer(_hostname, port, false, null, null);
+                server.Start();
+                Thread.Sleep(100);
+
+                client = new CavemanTcpClient(_hostname, port, false, null, null);
+                client.Connect(5);
+                Thread.Sleep(200);
+
+                // Use a pre-cancelled token
+                var cts = new CancellationTokenSource();
+                cts.Cancel();
+
+                byte[] data = new byte[1024];
+
+                try
+                {
+                    Task<WriteResult> sendTask = client.SendAsync(data, cts.Token);
+                    sendTask.Wait();
+                    WriteResult wr = sendTask.Result;
+
+                    if (wr.Status != WriteResultStatus.Canceled)
+                    {
+                        _framework.RecordFailure(testName, $"Expected Canceled status, got {wr.Status}");
+                        return;
+                    }
+                }
+                catch (AggregateException ae) when (ae.InnerException is TaskCanceledException || ae.InnerException is OperationCanceledException)
+                {
+                    // Pre-cancelled token caused cancellation exception in public wrapper - acceptable
+                }
+
+                _framework.RecordSuccess(testName);
+            }
+            catch (Exception ex)
+            {
+                _framework.RecordFailure(testName, ex.Message);
+            }
+            finally
+            {
+                client?.Dispose();
+                server?.Dispose();
+                Thread.Sleep(100);
+            }
+        }
+
+        static void Test_SendAsync_Cancellation_Server()
+        {
+            string testName = "SendAsync Cancellation (Server)";
+            CavemanTcpServer server = null;
+            CavemanTcpClient client = null;
+
+            try
+            {
+                int port = GetNextPort();
+                server = new CavemanTcpServer(_hostname, port, false, null, null);
+                server.Start();
+                Thread.Sleep(100);
+
+                client = new CavemanTcpClient(_hostname, port, false, null, null);
+                client.Connect(5);
+                Thread.Sleep(200);
+
+                var clients = server.GetClients().ToList();
+                Guid clientGuid = clients[0].Guid;
+
+                // Use a pre-cancelled token
+                var cts = new CancellationTokenSource();
+                cts.Cancel();
+
+                byte[] data = new byte[1024];
+
+                try
+                {
+                    Task<WriteResult> sendTask = server.SendAsync(clientGuid, data, cts.Token);
+                    sendTask.Wait();
+                    WriteResult wr = sendTask.Result;
+
+                    if (wr.Status != WriteResultStatus.Canceled)
+                    {
+                        _framework.RecordFailure(testName, $"Expected Canceled status, got {wr.Status}");
+                        return;
+                    }
+                }
+                catch (AggregateException ae) when (ae.InnerException is TaskCanceledException || ae.InnerException is OperationCanceledException)
+                {
+                    // Pre-cancelled token caused cancellation exception in public wrapper - acceptable
                 }
 
                 _framework.RecordSuccess(testName);

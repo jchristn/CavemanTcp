@@ -1675,65 +1675,99 @@
             ClientMetadata client = GetClient(guid);
             if (client == null) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
 
-            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
-
-            try
+            using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, token))
             {
-                while (true)
-                {
-                    bool success = await client.WriteSemaphore.WaitAsync(10, token).ConfigureAwait(false);
-                    if (success) break;
-                    await Task.Delay(10).ConfigureAwait(false);
-                }
+                CancellationToken linkedToken = linkedCts.Token;
 
-                if (contentLength > 0 && stream != null && stream.CanRead)
-                {
-                    long bytesRemaining = contentLength;
+                WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
 
-                    while (bytesRemaining > 0)
+                try
+                {
+                    while (true)
                     {
-                        byte[] buffer = new byte[_Settings.StreamBufferSize];
-                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-                        if (bytesRead > 0)
-                        {
-                            if (!_Ssl)
-                            {
-                                await client.NetworkStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
-                                await client.NetworkStream.FlushAsync(token).ConfigureAwait(false);
-                            }
-                            else
-                            {
-                                await client.SslStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
-                                await client.SslStream.FlushAsync(token).ConfigureAwait(false);
-                            }
-
-                            result.BytesWritten += bytesRead;
-                            _Statistics.AddSentBytes(bytesRead);
-                            bytesRemaining -= bytesRead;
-                        }
+                        bool success = await client.WriteSemaphore.WaitAsync(10, token).ConfigureAwait(false);
+                        if (success) break;
+                        await Task.Delay(10, token).ConfigureAwait(false);
                     }
                 }
+                catch (TaskCanceledException)
+                {
+                    result.Status = WriteResultStatus.Canceled;
+                    return result;
+                }
+                catch (OperationCanceledException)
+                {
+                    result.Status = WriteResultStatus.Canceled;
+                    return result;
+                }
 
-                return result;
-            }
-            catch (TaskCanceledException)
-            {
-                result.Status = WriteResultStatus.Canceled;
-                return result;
-            }
-            catch (OperationCanceledException)
-            {
-                result.Status = WriteResultStatus.Canceled;
-                return result;
-            }
-            catch (Exception)
-            {
-                result.Status = WriteResultStatus.Disconnected;
-                return result;
-            }
-            finally
-            {
+                Task<WriteResult> task = Task.Run(async () =>
+                {
+                    try
+                    {
+                        if (contentLength > 0 && stream != null && stream.CanRead)
+                        {
+                            long bytesRemaining = contentLength;
+
+                            while (bytesRemaining > 0)
+                            {
+                                byte[] buffer = new byte[_Settings.StreamBufferSize];
+                                int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+                                if (bytesRead > 0)
+                                {
+                                    if (!_Ssl)
+                                    {
+                                        await client.NetworkStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
+                                        await client.NetworkStream.FlushAsync(token).ConfigureAwait(false);
+                                    }
+                                    else
+                                    {
+                                        await client.SslStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
+                                        await client.SslStream.FlushAsync(token).ConfigureAwait(false);
+                                    }
+
+                                    result.BytesWritten += bytesRead;
+                                    _Statistics.AddSentBytes(bytesRead);
+                                    bytesRemaining -= bytesRead;
+                                }
+                            }
+                        }
+
+                        return result;
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        result.Status = WriteResultStatus.Canceled;
+                        return result;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        result.Status = WriteResultStatus.Canceled;
+                        return result;
+                    }
+                    catch (Exception)
+                    {
+                        result.Status = WriteResultStatus.Disconnected;
+                        return result;
+                    }
+                },
+                linkedToken);
+
+                Task delay = Task.Delay(-1, token);
+                Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
+                linkedCts.Cancel();
+
                 if (client != null) client.WriteSemaphore.Release();
+
+                if (first == task)
+                {
+                    return task.Result;
+                }
+                else
+                {
+                    result.Status = WriteResultStatus.Canceled;
+                    return result;
+                }
             }
         }
 
@@ -2007,72 +2041,106 @@
             ClientMetadata client = GetClient(guid);
             if (client == null) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
 
-            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
-
-            try
+            using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, token))
             {
-                while (true)
+                CancellationToken linkedToken = linkedCts.Token;
+
+                ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
+
+                try
                 {
-                    bool success = await client.ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
-                    if (success) break;
-                    await Task.Delay(10).ConfigureAwait(false);
+                    while (true)
+                    {
+                        bool success = await client.ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
+                        if (success) break;
+                        await Task.Delay(10, token).ConfigureAwait(false);
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    result.Status = ReadResultStatus.Canceled;
+                    return result;
+                }
+                catch (OperationCanceledException)
+                {
+                    result.Status = ReadResultStatus.Canceled;
+                    return result;
                 }
 
-                MemoryStream ms = new MemoryStream();
-                long bytesRemaining = count;
-
-                while (bytesRemaining > 0)
+                Task<ReadResult> task = Task.Run(async () =>
                 {
-                    byte[] buffer = null;
-                    if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
-                    else buffer = new byte[bytesRemaining];
-
-                    int bytesRead = 0;
-                    if (!_Ssl) bytesRead = await client.NetworkStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-                    else bytesRead = await client.SslStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-
-                    if (bytesRead > 0)
+                    try
                     {
-                        await ms.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
-                        result.BytesRead += bytesRead;
-                        _Statistics.AddReceivedBytes(bytesRead);
-                        bytesRemaining -= bytesRead;
+                        MemoryStream ms = new MemoryStream();
+                        long bytesRemaining = count;
+
+                        while (bytesRemaining > 0)
+                        {
+                            byte[] buffer = null;
+                            if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
+                            else buffer = new byte[bytesRemaining];
+
+                            int bytesRead = 0;
+                            if (!_Ssl) bytesRead = await client.NetworkStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+                            else bytesRead = await client.SslStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+
+                            if (bytesRead > 0)
+                            {
+                                await ms.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
+                                result.BytesRead += bytesRead;
+                                _Statistics.AddReceivedBytes(bytesRead);
+                                bytesRemaining -= bytesRead;
+                            }
+                            else
+                            {
+                                // Zero bytes read indicates graceful disconnect
+                                result.Status = ReadResultStatus.Disconnected;
+                                result.DataStream = null;
+                                RemoveAndDisposeClient(guid);
+                                return result;
+                            }
+                        }
+
+                        ms.Seek(0, SeekOrigin.Begin);
+                        result.DataStream = ms;
+                        return result;
                     }
-                    else
+                    catch (TaskCanceledException)
                     {
-                        // Zero bytes read indicates graceful disconnect
+                        result.Status = ReadResultStatus.Canceled;
+                        return result;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        result.Status = ReadResultStatus.Canceled;
+                        return result;
+                    }
+                    catch (Exception)
+                    {
                         result.Status = ReadResultStatus.Disconnected;
+                        result.BytesRead = 0;
                         result.DataStream = null;
                         RemoveAndDisposeClient(guid);
                         return result;
                     }
-                }
+                },
+                linkedToken);
 
-                ms.Seek(0, SeekOrigin.Begin);
-                result.DataStream = ms;
-                return result;
-            }
-            catch (TaskCanceledException)
-            {
-                result.Status = ReadResultStatus.Canceled;
-                return result;
-            }
-            catch (OperationCanceledException)
-            {
-                result.Status = ReadResultStatus.Canceled;
-                return result;
-            }
-            catch (Exception)
-            {
-                result.Status = ReadResultStatus.Disconnected;
-                result.BytesRead = 0;
-                result.DataStream = null;
-                RemoveAndDisposeClient(guid);
-                return result;
-            }
-            finally
-            {
+                Task delay = Task.Delay(-1, token);
+                Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
+                linkedCts.Cancel();
+
                 if (client != null) client.ReadSemaphore.Release();
+
+                if (first == task)
+                {
+                    return task.Result;
+                }
+                else
+                {
+                    result.Status = ReadResultStatus.Canceled;
+                    return result;
+                }
             }
         }
 
