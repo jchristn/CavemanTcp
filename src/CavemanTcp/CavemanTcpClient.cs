@@ -704,9 +704,10 @@
 
                 try
                 {
-                    _WriteSemaphore.Wait();
-                    _ReadSemaphore.Wait();
-
+                    // Cancel token and close streams BEFORE acquiring semaphores
+                    // to unblock any pending read/write operations that hold them.
+                    // Acquiring semaphores first would deadlock if a read/write is
+                    // blocked on the stream while holding the semaphore.
                     if (_TokenSource != null && !_Token.IsCancellationRequested)
                     {
                         _TokenSource.Cancel();
@@ -714,12 +715,12 @@
 
                     if (_SslStream != null)
                     {
-                        _SslStream.Close(); 
+                        _SslStream.Close();
                     }
 
                     if (_NetworkStream != null)
                     {
-                        _NetworkStream.Close(); 
+                        _NetworkStream.Close();
                     }
 
                     if (_Client != null)
@@ -728,6 +729,11 @@
                         _Client.Dispose();
                         _Client = null;
                     }
+
+                    // Now acquire semaphores to ensure pending operations have
+                    // finished unwinding after the cancellation/close above.
+                    _WriteSemaphore.Wait();
+                    _ReadSemaphore.Wait();
                 }
                 catch (Exception e)
                 {
@@ -740,8 +746,8 @@
                 finally
                 {
                     _Events.ClearAllEventHandlers();
-                    _ReadSemaphore.Release();
-                    _WriteSemaphore.Release();
+                    try { _ReadSemaphore.Release(); } catch (ObjectDisposedException) { }
+                    try { _WriteSemaphore.Release(); } catch (ObjectDisposedException) { }
                 }
 
                 _IsConnected = false;

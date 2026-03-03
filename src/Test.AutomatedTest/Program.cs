@@ -77,6 +77,8 @@ namespace Test.AutomatedTest
             Test_DisconnectDuringRead_Client_Async();
             Test_DisconnectDuringRead_Server_Sync();
             Test_DisconnectDuringRead_Server_Async();
+            Test_ClientSelfDisconnectDuringRead_Sync();
+            Test_ClientSelfDisconnectDuringRead_Async();
 
             // Timeout tests
             Test_SendWithTimeout();
@@ -1315,6 +1317,128 @@ namespace Test.AutomatedTest
                 }
 
                 // Should complete quickly (within ~2 seconds), not wait for 10 second timeout
+                if (sw.ElapsedMilliseconds > 5000)
+                {
+                    _framework.RecordFailure(testName, $"Took too long ({sw.ElapsedMilliseconds}ms), disconnect was not detected promptly");
+                    return;
+                }
+
+                _framework.RecordSuccess(testName);
+            }
+            catch (Exception ex)
+            {
+                _framework.RecordFailure(testName, ex.Message);
+            }
+            finally
+            {
+                client?.Dispose();
+                server?.Dispose();
+                Thread.Sleep(100);
+            }
+        }
+
+        static void Test_ClientSelfDisconnectDuringRead_Sync()
+        {
+            string testName = "Client Self-Disconnect During Read - Sync";
+            CavemanTcpServer server = null;
+            CavemanTcpClient client = null;
+
+            try
+            {
+                int port = GetNextPort();
+                server = new CavemanTcpServer(_hostname, port, false, null, null);
+                server.Start();
+                Thread.Sleep(100);
+
+                client = new CavemanTcpClient(_hostname, port, false, null, null);
+                client.Connect(5);
+                Thread.Sleep(200);
+
+                // Start a task to disconnect the client from itself after a short delay
+                var clientRef = client;
+                Task.Run(() =>
+                {
+                    Thread.Sleep(500);
+                    clientRef.Disconnect();
+                });
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                // Client tries to read with a long timeout - should not deadlock
+                ReadResult rr = client.ReadWithTimeout(10000, 100);
+
+                sw.Stop();
+
+                // Should return Disconnected or Canceled status
+                if (rr.Status != ReadResultStatus.Disconnected && rr.Status != ReadResultStatus.Canceled)
+                {
+                    _framework.RecordFailure(testName, $"Expected Disconnected or Canceled status, got {rr.Status}");
+                    return;
+                }
+
+                // Should complete quickly, not wait for 10 second timeout
+                if (sw.ElapsedMilliseconds > 5000)
+                {
+                    _framework.RecordFailure(testName, $"Took too long ({sw.ElapsedMilliseconds}ms), disconnect was not detected promptly");
+                    return;
+                }
+
+                _framework.RecordSuccess(testName);
+            }
+            catch (Exception ex)
+            {
+                _framework.RecordFailure(testName, ex.Message);
+            }
+            finally
+            {
+                client?.Dispose();
+                server?.Dispose();
+                Thread.Sleep(100);
+            }
+        }
+
+        static void Test_ClientSelfDisconnectDuringRead_Async()
+        {
+            string testName = "Client Self-Disconnect During Read - Async";
+            CavemanTcpServer server = null;
+            CavemanTcpClient client = null;
+
+            try
+            {
+                int port = GetNextPort();
+                server = new CavemanTcpServer(_hostname, port, false, null, null);
+                server.Start();
+                Thread.Sleep(100);
+
+                client = new CavemanTcpClient(_hostname, port, false, null, null);
+                client.Connect(5);
+                Thread.Sleep(200);
+
+                // Start a task to disconnect the client from itself after a short delay
+                var clientRef = client;
+                Task.Run(() =>
+                {
+                    Thread.Sleep(500);
+                    clientRef.Disconnect();
+                });
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                // Client tries to read async with a long timeout - should not deadlock
+                Task<ReadResult> readTask = client.ReadWithTimeoutAsync(10000, 100);
+                readTask.Wait();
+                ReadResult rr = readTask.Result;
+
+                sw.Stop();
+
+                // Should return Disconnected or Canceled status
+                if (rr.Status != ReadResultStatus.Disconnected && rr.Status != ReadResultStatus.Canceled)
+                {
+                    _framework.RecordFailure(testName, $"Expected Disconnected or Canceled status, got {rr.Status}");
+                    return;
+                }
+
+                // Should complete quickly, not wait for 10 second timeout
                 if (sw.ElapsedMilliseconds > 5000)
                 {
                     _framework.RecordFailure(testName, $"Took too long ({sw.ElapsedMilliseconds}ms), disconnect was not detected promptly");
