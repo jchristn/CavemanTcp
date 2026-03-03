@@ -108,7 +108,8 @@
         private CavemanTcpKeepaliveSettings _Keepalive = new CavemanTcpKeepaliveSettings();
         private CavemanTcpStatistics _Statistics = new CavemanTcpStatistics();
 
-        private bool _IsConnected = false; 
+        private bool _IsConnected = false;
+        private bool _Disposed = false;
         private string _Header = "[CavemanTcp.Client] ";
         private string _ServerIp = null;
         private int _ServerPort = 0;
@@ -291,8 +292,9 @@
         /// </summary>
         public void Connect(int timeoutSeconds)
         {  
-            if (timeoutSeconds < 1) throw new ArgumentException("Timeout must be greater than zero seconds."); 
-            if (IsConnected) return; 
+            if (timeoutSeconds < 1) throw new ArgumentException("Timeout must be greater than zero seconds.");
+            if (IsConnected) return;
+            _Disposed = false;
             InitializeClient(); 
             if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
 
@@ -698,9 +700,14 @@
         /// <param name="disposing">Dispose of resources.</param>
         protected virtual void Dispose(bool disposing)
         {
+            if (_Disposed) return;
+            _Disposed = true;
+
             if (disposing)
             {
                 Logger?.Invoke(_Header + "disposing");
+
+                bool wasConnected = _IsConnected;
 
                 try
                 {
@@ -745,12 +752,19 @@
                 }
                 finally
                 {
+                    _IsConnected = false;
+
+                    // Fire disconnected event BEFORE clearing handlers so
+                    // subscribers are notified even on explicit Disconnect().
+                    if (wasConnected)
+                    {
+                        _Events.HandleClientDisconnected(this);
+                    }
+
                     _Events.ClearAllEventHandlers();
                     try { _ReadSemaphore.Release(); } catch (ObjectDisposedException) { }
                     try { _WriteSemaphore.Release(); } catch (ObjectDisposedException) { }
                 }
-
-                _IsConnected = false;
 
                 Logger?.Invoke(_Header + "disposed");
             }
@@ -1047,8 +1061,7 @@
             finally
             {
                 Logger?.Invoke(_Header + "disconnected");
-                _Events.HandleClientDisconnected(this);
-                Dispose(true); 
+                Dispose(true);
             }
         }
 

@@ -62,6 +62,7 @@ namespace Test.AutomatedTest
             // Event tests
             Test_ClientConnectedEvent();
             Test_ClientDisconnectedEvent();
+            Test_ClientDisconnectedEvent_ExplicitDisconnect();
             Test_ServerClientConnectedEvent();
             Test_ServerClientDisconnectedEvent();
 
@@ -674,6 +675,56 @@ namespace Test.AutomatedTest
                 if (!eventFired)
                 {
                     _framework.RecordFailure(testName, "ClientDisconnected event did not fire when kicked by server");
+                    return;
+                }
+
+                _framework.RecordSuccess(testName);
+            }
+            catch (Exception ex)
+            {
+                _framework.RecordFailure(testName, ex.Message);
+            }
+            finally
+            {
+                client?.Dispose();
+                server?.Dispose();
+                Thread.Sleep(100);
+            }
+        }
+
+        static void Test_ClientDisconnectedEvent_ExplicitDisconnect()
+        {
+            string testName = "Client Disconnected Event (via Explicit Disconnect)";
+            CavemanTcpServer server = null;
+            CavemanTcpClient client = null;
+
+            try
+            {
+                int port = GetNextPort();
+                bool eventFired = false;
+
+                server = new CavemanTcpServer(_hostname, port, false, null, null);
+                server.Start();
+                Thread.Sleep(100);
+
+                client = new CavemanTcpClient(_hostname, port, false, null, null);
+                client.Events.ClientDisconnected += (s, e) => { eventFired = true; };
+                client.Connect(5);
+                Thread.Sleep(200);
+
+                if (!client.IsConnected)
+                {
+                    _framework.RecordFailure(testName, "Client not connected");
+                    return;
+                }
+
+                // Explicitly disconnect from client side (issue #24)
+                client.Disconnect();
+                Thread.Sleep(500);
+
+                if (!eventFired)
+                {
+                    _framework.RecordFailure(testName, "ClientDisconnected event did not fire on explicit Disconnect() call");
                     return;
                 }
 
