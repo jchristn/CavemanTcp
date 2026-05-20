@@ -37,6 +37,19 @@
             if (input == null) throw new ArgumentNullException(nameof(input));
             if (!input.CanRead) throw new InvalidOperationException("Input stream is not readable");
 
+            if (input is MemoryStream memoryStream)
+            {
+                if (memoryStream.TryGetBuffer(out ArraySegment<byte> segment))
+                {
+                    int offset = (int)memoryStream.Position;
+                    int count = (int)(memoryStream.Length - memoryStream.Position);
+                    byte[] data = new byte[count];
+                    Buffer.BlockCopy(segment.Array, segment.Offset + offset, data, 0, count);
+                    memoryStream.Seek(0, SeekOrigin.End);
+                    return data;
+                }
+            }
+
             byte[] buffer = new byte[16 * 1024];
             using (MemoryStream ms = new MemoryStream())
             {

@@ -2,16 +2,17 @@
 
 ## Current Version
 
-v2.0.x
+v2.1.0
 
-- Breaking changes
-- Clients now referenced by `Guid` instead of `string ipPort`
-- `ListClients` now returns an enumeration of `ClientMetadata`
-- `Send` and `Read` methods using `string ipPort` are marked obsolete
-- `AddClient` moved closer to connection acceptance
-- Target `net461` `net472` `net48` `net6.0` `net7.0` and `net8.0`
-- Better detection of disconnects
-- Disable Nagle's algorithm by default
+- Target `netstandard2.0`, `netstandard2.1`, `net462`, `net472`, `net48`, `net8.0`, and `net10.0`
+- Replace heavy connection probing with lightweight socket-poll monitoring
+- Rework timeout handling to cancel the underlying async I/O operations
+- Remove hot-path polling loops and per-chunk flush overhead
+- Eliminate extra `MemoryStream` copies for byte-array sends and reduce read-copy churn
+- Add server-side `Callbacks.AuthorizeConnection` plumbing and `Events.ClientDeclined`
+- Add IP:port lookup cache and fix rejected-connection cleanup
+- Replace `Test.AutomatedTest` with Touchstone-based `Test.Automated`, `Test.Shared`, `Test.XUnit`, and `Test.NUnit`
+- Expand automated coverage to 62 shared scenarios across positive, negative, concurrency, cancellation, and lifecycle cases
 
 ## Previous Versions
 

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CavemanTcp is a .NET TCP client/server library that provides developers with full control over network reads and writes. Unlike higher-level libraries (SimpleTcp, WatsonTcp), CavemanTcp requires explicit read/write calls, making it ideal for building custom state machines on top of TCP.
 
-**Key Design Principle**: This library does NOT continuously monitor connections. Disconnections are typically detected during read/write operations, so applications should expect and handle exceptions during these operations.
+**Key Design Principle**: This library does NOT run a background receive loop or message pump. It now includes lightweight optional connection monitors for faster disconnect detection, but callers still explicitly control reads and writes and should expect disconnects to surface during I/O.
 
 ## Build Commands
 
@@ -27,7 +27,7 @@ dotnet pack src/CavemanTcp/CavemanTcp.csproj -c Release
 
 ## Target Frameworks
 
-The library targets multiple frameworks: `netstandard2.0`, `netstandard2.1`, `net462`, `net472`, `net48`, `net6.0`, `net8.0`
+The library targets multiple frameworks: `netstandard2.0`, `netstandard2.1`, `net462`, `net472`, `net48`, `net8.0`, `net10.0`
 
 Note: TCP keepalive support is available for .NET Core and .NET Framework, but NOT for .NET Standard.
 
@@ -42,6 +42,10 @@ Note: TCP keepalive support is available for .NET Core and .NET Framework, but N
 - **src/Test.SslServer/** - SSL server test application
 - **src/Test.Disconnect/** - Disconnect handling test application
 - **src/Test.HttpLoopback/** - HTTP loopback test application
+- **src/Test.Shared/** - Shared Touchstone scenarios and assertions
+- **src/Test.Automated/** - Touchstone console runner
+- **src/Test.XUnit/** - xUnit harness over shared scenarios
+- **src/Test.NUnit/** - NUnit harness over shared scenarios
 
 ## Architecture Overview
 
@@ -49,8 +53,9 @@ Note: TCP keepalive support is available for .NET Core and .NET Framework, but N
 
 **CavemanTcpServer** - TCP server that accepts client connections
 - Clients are tracked by `Guid` (not IP:port string)
-- Uses `ConcurrentDictionary` for client management
-- Exposes `ClientConnected` and `ClientDisconnected` events
+- Uses dictionaries protected by a lock for client management and IP:port reverse lookup
+- Exposes `ClientConnected`, `ClientDisconnected`, `ClientDeclined`, and `ExceptionEncountered` events
+- Exposes `Callbacks.AuthorizeConnection` for admission control
 - Send/Read methods target specific clients by Guid
 - Returns `ClientMetadata` enumeration via `GetClients()`
 
@@ -92,7 +97,7 @@ Note: TCP keepalive support is available for .NET Core and .NET Framework, but N
 
 ## Important Implementation Details
 
-### Client Identification (v2.0.x Breaking Change)
+### Client Identification (v2.x Breaking Change)
 - Clients are now referenced by `Guid` instead of `string ipPort`
 - Old `Send(string ipPort, ...)` and `Read(string ipPort, ...)` methods are marked obsolete
 - Use `Send(Guid guid, ...)` and `Read(Guid guid, ...)` instead
@@ -106,7 +111,7 @@ When using timeout APIs (`SendWithTimeout`, `ReadWithTimeout`, etc.):
 - On timeout, consider resetting the connection to avoid stream state issues
 
 ### Nagle's Algorithm
-Disabled by default in v2.0.x for lower latency.
+Disabled by default for lower latency.
 
 ### SSL/TLS Support
 Both client and server support SSL/TLS via X.509 certificates. Test certificates are provided in the repository root (`cavemantcp.pfx`, `cavemantcp.crt`, `cavemantcp.key`).
@@ -118,44 +123,34 @@ Both client and server support SSL/TLS via X.509 certificates. Test certificates
 
 ## Testing
 
-Run test applications to verify functionality:
+Run automated coverage with Touchstone, xUnit, or NUnit:
 
 ```bash
-# Run client/server pairs simultaneously in separate terminals
-dotnet run --project src/Test.Server
-dotnet run --project src/Test.Client
-
-# Async versions
-dotnet run --project src/Test.ServerAsync
-dotnet run --project src/Test.ClientAsync
-
-# SSL versions
-dotnet run --project src/Test.SslServer
-dotnet run --project src/Test.SslClient
-
-# Disconnect handling
-dotnet run --project src/Test.Disconnect
+dotnet run --project src/Test.Automated/Test.Automated.csproj -c Release -f net8.0 --no-build
+dotnet test src/Test.XUnit/Test.XUnit.csproj -c Release -f net8.0 --no-build
+dotnet test src/Test.NUnit/Test.NUnit.csproj -c Release -f net8.0 --no-build
 ```
 
 ## Common Development Patterns
 
 ### Server Pattern
-1. Instantiate `TcpServer` with IP, port, SSL settings
+1. Instantiate `CavemanTcpServer` with IP, port, SSL settings
 2. Wire up `Events.ClientConnected` and `Events.ClientDisconnected` handlers
 3. Call `Start()` to begin listening
 4. Use `Send(Guid, data)` and `Read(Guid, count)` for client I/O
 5. Track client Guids from `ClientConnectedEventArgs`
 
 ### Client Pattern
-1. Instantiate `TcpClient` with server IP, port, SSL settings
+1. Instantiate `CavemanTcpClient` with server IP, port, SSL settings
 2. Wire up `Events.ClientConnected` and `Events.ClientDisconnected` handlers
 3. Call `Connect(timeout)` to connect
 4. Use `Send(data)` and `Read(count)` for server I/O
 5. Handle exceptions during read/write as indicators of disconnection
 
 ### Disconnection Detection
-- No background threads monitor connection state
-- Disconnects are detected during `Send()` or `Read()` operations
+- No background receive loop processes messages for you
+- Optional lightweight connection monitors can detect graceful disconnects quickly
+- Disconnects are still authoritative during `Send()` or `Read()` operations
 - Check `ReadResult.Status` and `WriteResult.Status` for `Disconnected`
 - TCP keepalives can help detect silent disconnections (if enabled and supported)
 
@@ -163,6 +158,6 @@ dotnet run --project src/Test.Disconnect
 
 - When making changes to the library, ensure compatibility across all target frameworks
 - Pay attention to conditional compilation directives for framework-specific features (especially TCP keepalives)
-- The library prioritizes explicit control over convenience - avoid adding auto-reconnect or background monitoring features
+- The library prioritizes explicit control over convenience - avoid adding auto-reconnect or automatic message-pump features
 - Test changes against multiple test applications (sync/async, client/server, SSL/non-SSL)
 - Events should be cleared after disposal to prevent memory leaks (see PR #19)

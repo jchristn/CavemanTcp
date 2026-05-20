@@ -30,7 +30,7 @@ CavemanTcp is designed for developers who need **explicit control** over TCP com
 
 ### Key Implications
 
-1. **No Background Monitoring**: The library does not continuously monitor connections. A connection may be dead, but you won't know until you try to read or write.
+1. **No Background Receive Pump**: The library does not continuously read for you or perform message framing. Optional lightweight connection monitors can detect graceful disconnects quickly, but your protocol flow is still driven by explicit reads and writes.
 
 2. **Synchronous Control Flow**: You control when reads and writes happen, making it ideal for request-response protocols or custom state machines.
 
@@ -645,6 +645,8 @@ public async Task<byte[]> ReadWithCancellationAsync(int byteCount, CancellationT
 ## TCP Keepalive Configuration
 
 TCP keepalives help detect dead connections when there's no application-level traffic.
+
+TCP keepalives are disabled by default. Enable them deliberately when you need them.
 
 **Note**: TCP keepalives are **not available on .NET Standard**. They work on .NET Framework and .NET Core/.NET 5+.
 

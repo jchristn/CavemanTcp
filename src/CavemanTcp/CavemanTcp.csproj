@@ -2,10 +2,10 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>netstandard2.0;netstandard2.1;net462;net472;net48;net8.0;net10.0</TargetFrameworks>
-		<Version>2.0.17</Version>
+		<Version>2.1.0</Version>
 		<Authors>Joel Christner</Authors>
 		<Description>CavemanTcp is a simple TCP client and server providing easy integration and full control over network reads and writes, allowing you to build your own state machines with ease.</Description>
-		<PackageReleaseNotes>Fix ClientDisconnected event not firing on explicit Disconnect() call (issue #24)</PackageReleaseNotes>
+		<PackageReleaseNotes>Lightweight connection monitoring, true async timeout cancellation, lower-allocation transport paths, authorization callbacks/client-declined events, and expanded 62-scenario Touchstone/xUnit/NUnit coverage.</PackageReleaseNotes>
 		
 		<Copyright>(c)2026 Joel Christner</Copyright>
 		<PackageLicenseUrl></PackageLicenseUrl>
@@ -21,7 +21,7 @@
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<DocumentationFile>CavemanTcp.xml</DocumentationFile>
+		<DocumentationFile>$(OutputPath)CavemanTcp.xml</DocumentationFile>
 		<ApplicationIcon>icon.ico</ApplicationIcon>
 		<Title>CavemanTcp</Title>
 		<IncludeSymbols>True</IncludeSymbols>
@@ -30,6 +30,10 @@
 
 	<ItemGroup>
 	  <Content Include="icon.ico" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="System.Buffers" Version="4.6.0" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -53,9 +57,6 @@
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 		<None Update="assets\icon.png">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</None>
-		<None Update="CavemanTcp.xml">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 	</ItemGroup>

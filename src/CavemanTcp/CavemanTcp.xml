@@ -376,6 +376,11 @@
         </member>
         <member name="P:CavemanTcp.CavemanTcpServer.Events">
             <summary>
+            CavemanTcp server events.
+            </summary>
+        </member>
+        <member name="P:CavemanTcp.CavemanTcpServer.Callbacks">
+            <summary>
             CavemanTcp server callbacks.
             </summary>
         </member>
@@ -820,6 +825,11 @@
         <member name="E:CavemanTcp.CavemanTcpServerEvents.ClientDisconnected">
             <summary>
             Event to fire when a client disconnects.  A string containing the client IP:port will be passed.
+            </summary>
+        </member>
+        <member name="E:CavemanTcp.CavemanTcpServerEvents.ClientDeclined">
+            <summary>
+            Event to fire when a client connection is declined before admission.
             </summary>
         </member>
         <member name="E:CavemanTcp.CavemanTcpServerEvents.ExceptionEncountered">

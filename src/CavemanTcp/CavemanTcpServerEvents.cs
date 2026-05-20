@@ -28,6 +28,15 @@
             add => _ClientDisconnected += value;
             remove => _ClientDisconnected -= value;
         }
+
+        /// <summary>
+        /// Event to fire when a client connection is declined before admission.
+        /// </summary>
+        public event EventHandler<ClientDeclinedEventArgs> ClientDeclined
+        {
+            add => _ClientDeclined += value;
+            remove => _ClientDeclined -= value;
+        }
         
         /// <summary>
         /// Event to fire when an exception is encountered.
@@ -45,6 +54,7 @@
 
         private EventHandler<ClientConnectedEventArgs> _ClientConnected;
         private EventHandler<ClientDisconnectedEventArgs> _ClientDisconnected;
+        private EventHandler<ClientDeclinedEventArgs> _ClientDeclined;
         private EventHandler<ExceptionEventArgs> _ExceptionEncountered;
 
         #endregion
@@ -70,6 +80,7 @@
         {
             _ClientConnected = null;
             _ClientDisconnected = null;
+            _ClientDeclined = null;
             _ExceptionEncountered = null;
         }
 
@@ -81,6 +92,11 @@
         internal void HandleClientDisconnected(object sender, ClientDisconnectedEventArgs args)
         { 
             WrappedEventHandler(() => _ClientDisconnected?.Invoke(sender, args), "ClientDisconnected", sender);
+        }
+
+        internal void HandleClientDeclined(object sender, ClientDeclinedEventArgs args)
+        {
+            WrappedEventHandler(() => _ClientDeclined?.Invoke(sender, args), "ClientDeclined", sender);
         }
 
         internal void HandleExceptionEncountered(object sender, Exception e)

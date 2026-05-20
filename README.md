@@ -14,20 +14,21 @@ Important:
 
 ## Disconnection Handling
 
-Since CavemanTcp relies on the consuming application to specify when to read or write, there are no background threads continually monitoring the state of the TCP connection (unlike SimpleTcp and WatsonTcp).  Thus, you should build your apps on the expectation that an exception may be thrown while in the middle of a read or write.
+Since CavemanTcp relies on the consuming application to specify when to read or write, there is still no background receive loop or message pump.  You retain explicit control over I/O, and you should still build your application on the expectation that disconnects can surface during reads and writes.
+
+Client and server connection monitors are available to detect graceful closes and resets quickly using lightweight socket polling.  They are enabled by default.  Silent network failures still require TCP keepalives or an application heartbeat if you need aggressive detection.
 
 As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; unfortunately .NET Standard does not offer this support, so it is not present for apps using CavemanTcp targeted to .NET Standard.
 
-## New in v2.0.x
+## New in v2.1.0
 
-- Breaking changes
-- Clients now referenced by `Guid` instead of `string ipPort`
-- `ListClients` now returns an enumeration of `ClientMetadata`
-- `Send` and `Read` methods using `string ipPort` are marked obsolete
-- `AddClient` moved closer to connection acceptance
-- Target `net461` `net472` `net48` `net6.0` `net7.0` and `net8.0`
-- Better detection of disconnects
-- Disable Nagle's algorithm by default
+- Target `netstandard2.0`, `netstandard2.1`, `net462`, `net472`, `net48`, `net8.0`, and `net10.0`
+- Lightweight socket-poll connection monitoring for faster disconnect detection
+- True cancellable async timeout handling for read and write APIs
+- Lower-allocation send/read paths and removal of per-chunk flush overhead
+- Faster server client lookup by IP:port and cleaner rejected-connection handling
+- `Callbacks.AuthorizeConnection` support and `Events.ClientDeclined`
+- Touchstone-based automated, xUnit, and NUnit coverage with 62 shared scenarios spanning positive, negative, concurrency, cancellation, and lifecycle cases
 
 ## Examples
 
@@ -36,13 +37,18 @@ As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; 
 using CavemanTcp;
 
 // Instantiate
-TcpServer server = new TcpServer("127.0.0.1", 8000, false, null, null);
+CavemanTcpServer server = new CavemanTcpServer("127.0.0.1", 8000, false, null, null);
 server.Logger = Logger;
 
-// Set callbacks
+// Set callbacks and events
+server.Callbacks.AuthorizeConnection = (ip, port) => true;
 server.Events.ClientConnected += (s, e) => 
 { 
     Console.WriteLine("Client " + e.Client.ToString() + " connected to server");
+};
+server.Events.ClientDeclined += (s, e) =>
+{
+    Console.WriteLine("Declined " + e.IpPort + " reason " + e.Reason);
 };
 server.Events.ClientDisconnected += (s, e) => 
 { 
@@ -79,7 +85,7 @@ server.DisconnectClient(guid);
 using CavemanTcp; 
 
 // Instantiate
-TcpClient client = new TcpClient("127.0.0.1", 8000, false, null, null);
+CavemanTcpClient client = new CavemanTcpClient("127.0.0.1", 8000, false, null, null);
 client.Logger = Logger;
 
 // Set callbacks
@@ -117,8 +123,9 @@ rr = await client.ReadWithTimeoutAsync([ms], [count]);
 
 - `ClientNotFound` - only applicable for server read and write operations
 - `Success` - the operation was successful
-- `Timeout` - the operation timed out (reserved for future use)
+- `Timeout` - the operation timed out
 - `Disconnected` - the peer disconnected
+- `Canceled` - the operation was canceled by the caller
 
 `WriteResult` also includes:
 
@@ -148,6 +155,7 @@ It is important to understand what a timeout indicates and more important what i
 
 - A timeout on a write operation has **nothing to do with whether or not the recipient read the data**.  Rather it is whether or not CavemanTcp was able to write the data to the underlying `NetworkStream` or `SslStream`
 - A timeout on a read operation will occur if CavemanTcp is unable to read the specified number of bytes from the underlying `NetworkStream` or `SslStream` in the allotted number of milliseconds
+- Timeout and cancellation APIs now cancel the underlying I/O operation instead of timing out a wrapper task
 - Valid values for `timeoutMs` are `-1` or any positive integer.  `-1` indicates no timeout and is the same as using an API that doesn't specify a timeout
 - Pay close attention to either `BytesRead` or `BytesWritten` (if you were reading or writing) in the event of a timeout.  The timeout may have occurred mid-operation and therefore it will be important to recover from the failure.
   - For example, server sends client 50,000 bytes
@@ -161,20 +169,36 @@ It is important to understand what a timeout indicates and more important what i
 
 As of v1.3.0, support for TCP keepalives has been added to CavemanTcp, primarily to address the issue of a network interface being shut down, the cable unplugged, or the media otherwise becoming unavailable.  It is important to note that keepalives are supported in .NET Core and .NET Framework, but NOT .NET Standard.  As of this release, .NET Standard provides no facilities for TCP keepalives.
 
-TCP keepalives are enabled by default.
+TCP keepalives are disabled by default.
 ```csharp
 server.Keepalive.EnableTcpKeepAlives = true;
-server.Keepalive.TcpKeepAliveInterval = 5;      // seconds to wait before sending subsequent keepalive
-server.Keepalive.TcpKeepAliveTime = 5;          // seconds to wait before sending a keepalive
-server.Keepalive.TcpKeepAliveRetryCount = 5;    // number of failed keepalive probes before terminating connection
+server.Keepalive.TcpKeepAliveInterval = 2;      // seconds to wait before sending subsequent keepalive
+server.Keepalive.TcpKeepAliveTime = 2;          // seconds to wait before sending a keepalive
+server.Keepalive.TcpKeepAliveRetryCount = 3;    // number of failed keepalive probes before terminating connection
 ```
 
 Some important notes about TCP keepalives:
 
 - This capability is enabled by the underlying framework and operating system, not provided by this library
 - Keepalives only work in .NET Core and .NET Framework
-- Keepalives can be enabled on either client or server, but generally only work on server (being investigated)
 - ```Keepalive.TcpKeepAliveRetryCount``` is only applicable to .NET Core; for .NET Framework, this value is forced to 10
+
+## Testing
+
+Touchstone-backed automated coverage ships in four projects:
+
+- `src/Test.Shared` - shared scenarios and assertions
+- `src/Test.Automated` - console runner
+- `src/Test.XUnit` - xUnit harness
+- `src/Test.NUnit` - NUnit harness
+
+Examples:
+
+```bash
+dotnet run --project src/Test.Automated/Test.Automated.csproj -c Release -f net8.0 --no-build
+dotnet test src/Test.XUnit/Test.XUnit.csproj -c Release -f net8.0 --no-build
+dotnet test src/Test.NUnit/Test.NUnit.csproj -c Release -f net8.0 --no-build
+```
 
 ## Special Thanks
 

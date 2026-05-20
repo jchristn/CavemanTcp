@@ -1,6 +1,7 @@
 ﻿namespace CavemanTcp
 {
     using System;
+    using System.Buffers;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.IO;
@@ -57,7 +58,7 @@
         }
 
         /// <summary>
-        /// CavemanTcp server callbacks.
+        /// CavemanTcp server events.
         /// </summary>
         public CavemanTcpServerEvents Events
         {
@@ -69,6 +70,22 @@
             {
                 if (value == null) _Events = new CavemanTcpServerEvents();
                 else _Events = value;
+            }
+        }
+
+        /// <summary>
+        /// CavemanTcp server callbacks.
+        /// </summary>
+        public CavemanTcpServerCallbacks Callbacks
+        {
+            get
+            {
+                return _Callbacks;
+            }
+            set
+            {
+                if (value == null) _Callbacks = new CavemanTcpServerCallbacks();
+                else _Callbacks = value;
             }
         }
 
@@ -105,6 +122,7 @@
 
         private CavemanTcpServerSettings _Settings = new CavemanTcpServerSettings();
         private CavemanTcpServerEvents _Events = new CavemanTcpServerEvents();
+        private CavemanTcpServerCallbacks _Callbacks = new CavemanTcpServerCallbacks();
         private CavemanTcpKeepaliveSettings _Keepalive = new CavemanTcpKeepaliveSettings();
         private CavemanTcpStatistics _Statistics = new CavemanTcpStatistics();
 
@@ -122,11 +140,14 @@
 
         private CancellationTokenSource _TokenSource = new CancellationTokenSource();
         private CancellationToken _Token;
+        private CancellationTokenRegistration _ExternalTokenRegistration;
         private TcpListener _Listener;
         private Task _AcceptConnections = null;
+        private static readonly TimeSpan _DefaultConnectionMonitorInterval = TimeSpan.FromMilliseconds(250);
 
         private readonly object _ClientsLock = new object();
         private Dictionary<Guid, ClientMetadata> _Clients = new Dictionary<Guid, ClientMetadata>();
+        private Dictionary<string, Guid> _ClientIdsByIpPort = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
 
         #endregion
 
@@ -348,6 +369,8 @@
 
             _Listener = new TcpListener(_IPAddress, _Port);
             _Listener.Start();
+            _ExternalTokenRegistration.Dispose();
+            _ExternalTokenRegistration = default;
 
             _TokenSource = new CancellationTokenSource();
             _Token = _TokenSource.Token;
@@ -369,11 +392,23 @@
 
             _Listener = new TcpListener(_IPAddress, _Port);
             _Listener.Start();
+            _ExternalTokenRegistration.Dispose();
+            _ExternalTokenRegistration = default;
 
-            if (token == default(CancellationToken))
+            if (token != default(CancellationToken))
             {
                 _TokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
-                _Token = token;
+                _Token = _TokenSource.Token;
+                _ExternalTokenRegistration = token.Register(() =>
+                {
+                    try
+                    {
+                        _Listener?.Stop();
+                    }
+                    catch
+                    {
+                    }
+                });
             }
             else
             {
@@ -398,6 +433,8 @@
             _IsListening = false;
             _Listener.Stop();
             _TokenSource.Cancel();
+            _ExternalTokenRegistration.Dispose();
+            _ExternalTokenRegistration = default;
 
             Logger?.Invoke(_Header + "stopped");
         }
@@ -452,10 +489,10 @@
         public WriteResult Send(string ipPort, byte[] data)
         {
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
-            MemoryStream ms = new MemoryStream();
-            ms.Write(data, 0, data.Length);
-            ms.Seek(0, SeekOrigin.Begin);
-            return Send(ipPort, data.Length, ms);
+            if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
+            return SendBytesWithoutTimeoutInternal(guid, data);
         }
 
         /// <summary>
@@ -467,10 +504,8 @@
         public WriteResult Send(Guid guid, byte[] data)
         {
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
-            MemoryStream ms = new MemoryStream();
-            ms.Write(data, 0, data.Length);
-            ms.Seek(0, SeekOrigin.Begin);
-            return Send(guid, data.Length, ms);
+            if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
+            return SendBytesWithoutTimeoutInternal(guid, data);
         }
 
         /// <summary>
@@ -554,10 +589,10 @@
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
-            MemoryStream ms = new MemoryStream();
-            ms.Write(data, 0, data.Length);
-            ms.Seek(0, SeekOrigin.Begin);
-            return SendWithTimeout(timeoutMs, ipPort, data.Length, ms);
+            if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
+            return SendBytesWithTimeoutInternal(timeoutMs, guid, data);
         }
 
         /// <summary>
@@ -571,10 +606,8 @@
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
-            MemoryStream ms = new MemoryStream();
-            ms.Write(data, 0, data.Length);
-            ms.Seek(0, SeekOrigin.Begin);
-            return SendWithTimeout(timeoutMs, guid, data.Length, ms);
+            if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
+            return SendBytesWithTimeoutInternal(timeoutMs, guid, data);
         }
 
         /// <summary>
@@ -659,10 +692,10 @@
         public async Task<WriteResult> SendAsync(string ipPort, byte[] data, CancellationToken token = default)
         {
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
-            MemoryStream ms = new MemoryStream();
-            await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
-            ms.Seek(0, SeekOrigin.Begin);
-            return await SendAsync(ipPort, data.Length, ms, token).ConfigureAwait(false);
+            if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
+            return await SendBytesWithoutTimeoutInternalAsync(guid, data, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -675,10 +708,8 @@
         public async Task<WriteResult> SendAsync(Guid guid, byte[] data, CancellationToken token = default)
         {
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
-            MemoryStream ms = new MemoryStream();
-            await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
-            ms.Seek(0, SeekOrigin.Begin);
-            return await SendAsync(guid, data.Length, ms, token).ConfigureAwait(false);
+            if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
+            return await SendBytesWithoutTimeoutInternalAsync(guid, data, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -698,7 +729,6 @@
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            if (token == default(CancellationToken)) token = _Token;
             return await SendWithoutTimeoutInternalAsync(guid, contentLength, stream, token).ConfigureAwait(false);
         }
 
@@ -715,7 +745,6 @@
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            if (token == default(CancellationToken)) token = _Token;
             return await SendWithoutTimeoutInternalAsync(guid, contentLength, stream, token).ConfigureAwait(false);
         }
 
@@ -769,10 +798,10 @@
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
-            MemoryStream ms = new MemoryStream();
-            await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
-            ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithTimeoutAsync(timeoutMs, ipPort, data.Length, ms, token).ConfigureAwait(false);
+            if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
+            Guid guid = ClientGuidFromIpPort(ipPort);
+            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
+            return await SendBytesWithTimeoutInternalAsync(timeoutMs, guid, data, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -787,10 +816,8 @@
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
-            MemoryStream ms = new MemoryStream();
-            await ms.WriteAsync(data, 0, data.Length, token).ConfigureAwait(false);
-            ms.Seek(0, SeekOrigin.Begin);
-            return await SendWithTimeoutAsync(timeoutMs, guid, data.Length, ms, token).ConfigureAwait(false);
+            if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
+            return await SendBytesWithTimeoutInternalAsync(timeoutMs, guid, data, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -812,7 +839,6 @@
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            if (token == default(CancellationToken)) token = _Token;
             return await SendWithTimeoutInternalAsync(timeoutMs, guid, contentLength, stream, token).ConfigureAwait(false);
         }
 
@@ -831,7 +857,6 @@
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-            if (token == default(CancellationToken)) token = _Token;
             return await SendWithTimeoutInternalAsync(timeoutMs, guid, contentLength, stream, token).ConfigureAwait(false);
         }
 
@@ -953,7 +978,6 @@
             Guid guid = ClientGuidFromIpPort(ipPort);
             if (guid == Guid.Empty) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            if (token == default(CancellationToken)) token = _Token;
             return await ReadWithoutTimeoutInternalAsync(guid, (long)count, token).ConfigureAwait(false);
         }
 
@@ -967,7 +991,6 @@
         public async Task<ReadResult> ReadAsync(Guid guid, int count, CancellationToken token = default)
         {
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            if (token == default(CancellationToken)) token = _Token;
             return await ReadWithoutTimeoutInternalAsync(guid, (long)count, token).ConfigureAwait(false);
         }
 
@@ -991,7 +1014,6 @@
             Guid guid = ClientGuidFromIpPort(ipPort);
             if (guid == Guid.Empty) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            if (token == default(CancellationToken)) token = _Token;
             return await ReadWithTimeoutInternalAsync(timeoutMs, guid, (long)count, token).ConfigureAwait(false);
         }
 
@@ -1007,7 +1029,6 @@
         {
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
-            if (token == default(CancellationToken)) token = _Token;
             return await ReadWithTimeoutInternalAsync(timeoutMs, guid, (long)count, token).ConfigureAwait(false);
         }
 
@@ -1106,6 +1127,9 @@
                                 curr.Value.Dispose();
                                 Logger?.Invoke(_Header + "disconnected client " + curr.Value.ToString());
                             }
+
+                            _Clients.Clear();
+                            _ClientIdsByIpPort.Clear();
                         }
                     }
 
@@ -1117,6 +1141,9 @@
                             _TokenSource.Dispose();
                         }
                     }
+
+                    _ExternalTokenRegistration.Dispose();
+                    _ExternalTokenRegistration = default;
 
                     if (_Listener != null && _Listener.Server != null)
                     {
@@ -1193,100 +1220,37 @@
 
         private bool IsClientConnected(ClientMetadata client)
         {
-            if (client == null || client.Client == null)
-            {
-                Logger?.Invoke(_Header + "null TCP client");
-                return false;
-            }
+            Socket socket = client?.Client?.Client;
 
-            if (!client.Client.Connected)
+            if (socket == null || !client.Client.Connected)
             {
-                Logger?.Invoke(_Header + "client " + client.Guid.ToString() + " reports not connected");
                 return false;
-            }
-
-            while (!client.WriteSemaphore.Wait(10))
-            {
-                Task.Delay(10).Wait();
             }
 
             try
             {
-                IPGlobalProperties properties = IPGlobalProperties.GetIPGlobalProperties();
-                TcpConnectionInformation[] connections = properties.GetActiveTcpConnections();
-
-                var state = connections.FirstOrDefault(x =>
-                    x.LocalEndPoint.Address.Equals(((IPEndPoint)client.Client.Client.LocalEndPoint).Address)
-                    && x.LocalEndPoint.Port.Equals(((IPEndPoint)client.Client.Client.LocalEndPoint).Port)
-                    && x.RemoteEndPoint.Address.Equals(((IPEndPoint)client.Client.Client.RemoteEndPoint).Address)
-                    && x.RemoteEndPoint.Port.Equals(((IPEndPoint)client.Client.Client.RemoteEndPoint).Port));
-
-                if (state == null)
+                if (socket.Poll(0, SelectMode.SelectError))
                 {
-                    Logger?.Invoke(_Header + "client " + client.Guid.ToString() + " reports null connection state");
+                    Logger?.Invoke(_Header + "socket poll reported an error for client " + client.Guid.ToString());
                     return false;
                 }
-                else
-                {
-                    if (state == default(TcpConnectionInformation)
-                        || state.State == TcpState.Unknown
-                        || state.State == TcpState.FinWait1
-                        || state.State == TcpState.FinWait2
-                        || state.State == TcpState.Closed
-                        || state.State == TcpState.Closing
-                        || state.State == TcpState.CloseWait)
-                    {
-                        Logger?.Invoke(_Header + "client " + client.Guid.ToString() + " reports TCP connection state: " + state.ToString());
-                        return false;
-                    }
-                }
 
-                try
+                if (socket.Poll(0, SelectMode.SelectRead) && socket.Available == 0)
                 {
-                    client.Client.Client.Send(new byte[1], 0, 0);
-                    return true;
-                }
-                catch (SocketException se)
-                {
-                    if (se.NativeErrorCode.Equals(10035))
-                    {
-                        return true;
-                    }
-                }
-                catch (Exception)
-                {
-                }
-
-                try
-                {
-                    if ((client.Client.Client.Poll(0, SelectMode.SelectWrite))
-                        && (!client.Client.Client.Poll(0, SelectMode.SelectError)))
-                    {
-                        if (client.Client.Client.Receive(new byte[1], SocketFlags.Peek) == 0)
-                        {
-                            Logger?.Invoke(_Header + "unable to peek from receive buffer");
-                            return false;
-                        }
-                        else
-                        {
-                            return true;
-                        }
-                    }
-                    else
-                    {
-                        Logger?.Invoke(_Header + "unable to poll socket");
-                        return false;
-                    }
-                }
-                catch (Exception)
-                {
-                    Logger?.Invoke(_Header + "exception while polling socket");
+                    Logger?.Invoke(_Header + "socket poll detected remote disconnect for client " + client.Guid.ToString());
                     return false;
                 }
+
+                return true;
             }
-            finally
+            catch (ObjectDisposedException)
             {
-                client.WriteSemaphore.Release();
+                return false;
+            }
+            catch (SocketException se)
+            {
+                Logger?.Invoke(_Header + "socket exception while checking connectivity for client " + client.Guid.ToString() + ": " + se.Message);
+                return false;
             }
         }
 
@@ -1300,9 +1264,9 @@
 
                 #region Check-for-Maximum-Connections
 
-                if (!_IsListening && (_Clients.Count >= _Settings.MaxConnections))
+                if (!_IsListening && (GetClientCount() >= _Settings.MaxConnections))
                 {
-                    Task.Delay(100).Wait();
+                    await Task.Delay(100, _Token).ConfigureAwait(false);
                     continue;
                 }
                 else if (!_IsListening)
@@ -1323,25 +1287,35 @@
                     client = new ClientMetadata(tcpClient);
                     CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, client.Token);
 
-                    AddClient(client);
-
                     string clientIp = null;
                     int clientPort = 0;
                     Common.ParseIpPort(clientIpPort, out clientIp, out clientPort);
 
-                    if (_Settings.PermittedIPs.Count > 0 && !_Settings.PermittedIPs.Contains(clientIp))
+                    if (!IsClientPermitted(clientIp))
                     {
                         Logger?.Invoke($"{_Header}rejecting connection from {clientIp} (not permitted)");
-                        tcpClient.Close();
+                        _Events.HandleClientDeclined(this, new ClientDeclinedEventArgs(clientIpPort));
+                        client.Dispose();
                         continue;
                     }
 
-                    if (_Settings.BlockedIPs.Count > 0 && _Settings.BlockedIPs.Contains(clientIp))
+                    if (IsClientBlocked(clientIp))
                     {
                         Logger?.Invoke($"{_Header}rejecting connection from {clientIp} (blocked)");
-                        tcpClient.Close();
+                        _Events.HandleClientDeclined(this, new ClientDeclinedEventArgs(clientIpPort));
+                        client.Dispose();
                         continue;
                     }
+
+                    if (!IsClientAuthorized(clientIp, clientPort))
+                    {
+                        Logger?.Invoke($"{_Header}rejecting connection from {clientIpPort} (authorization callback)");
+                        _Events.HandleClientDeclined(this, new ClientDeclinedEventArgs(clientIpPort));
+                        client.Dispose();
+                        continue;
+                    }
+
+                    AddClient(client);
 
                     if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives(tcpClient);
 
@@ -1351,9 +1325,9 @@
 
                     #region Check-for-Maximum-Connections
 
-                    if (_Clients.Count >= _Settings.MaxConnections)
+                    if (GetClientCount() >= _Settings.MaxConnections)
                     {
-                        Logger?.Invoke($"{_Header}maximum connections {_Settings.MaxConnections} met (currently {_Clients.Count} connections), pausing");
+                        Logger?.Invoke($"{_Header}maximum connections {_Settings.MaxConnections} met (currently {GetClientCount()} connections), pausing");
                         _IsListening = false;
                         _Listener.Stop();
                     }
@@ -1486,7 +1460,7 @@
             {
                 while (client != null && !client.Token.IsCancellationRequested)
                 {
-                    await Task.Delay(1000, token).ConfigureAwait(false);
+                    await Task.Delay(_DefaultConnectionMonitorInterval, token).ConfigureAwait(false);
                     if (!IsClientConnected(client)) break;
                 }
             }
@@ -1515,349 +1489,135 @@
 
         #region Send
 
-        // No cancellation token
+        private WriteResult SendBytesWithoutTimeoutInternal(Guid guid, byte[] data)
+        {
+            return SendBytesInternalAsync(guid, data, -1, CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        private WriteResult SendBytesWithTimeoutInternal(int timeoutMs, Guid guid, byte[] data)
+        {
+            return SendBytesInternalAsync(guid, data, timeoutMs, CancellationToken.None).GetAwaiter().GetResult();
+        }
+
         private WriteResult SendWithoutTimeoutInternal(Guid guid, long contentLength, Stream stream)
         {
-            ClientMetadata client = GetClient(guid);
-            if (client == null) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
+            return SendStreamInternalAsync(guid, contentLength, stream, -1, CancellationToken.None).GetAwaiter().GetResult();
+        }
 
-            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
+        private WriteResult SendWithTimeoutInternal(int timeoutMs, Guid guid, long contentLength, Stream stream)
+        {
+            return SendStreamInternalAsync(guid, contentLength, stream, timeoutMs, CancellationToken.None).GetAwaiter().GetResult();
+        }
 
-            try
-            {
-                while (!client.WriteSemaphore.Wait(10))
+        private Task<WriteResult> SendBytesWithoutTimeoutInternalAsync(Guid guid, byte[] data, CancellationToken token)
+        {
+            return SendBytesInternalAsync(guid, data, -1, token);
+        }
+
+        private Task<WriteResult> SendBytesWithTimeoutInternalAsync(int timeoutMs, Guid guid, byte[] data, CancellationToken token)
+        {
+            return SendBytesInternalAsync(guid, data, timeoutMs, token);
+        }
+
+        private async Task<WriteResult> SendWithoutTimeoutInternalAsync(Guid guid, long contentLength, Stream stream, CancellationToken token)
+        {
+            return await SendStreamInternalAsync(guid, contentLength, stream, -1, token).ConfigureAwait(false);
+        }
+
+        private async Task<WriteResult> SendWithTimeoutInternalAsync(int timeoutMs, Guid guid, long contentLength, Stream stream, CancellationToken token)
+        {
+            return await SendStreamInternalAsync(guid, contentLength, stream, timeoutMs, token).ConfigureAwait(false);
+        }
+
+        private async Task<WriteResult> SendBytesInternalAsync(Guid guid, byte[] data, int timeoutMs, CancellationToken token)
+        {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+
+            return await ExecuteWriteAsync(
+                guid,
+                timeoutMs,
+                token,
+                async (client, transport, cancellationToken) =>
                 {
-                    Task.Delay(10).Wait();
-                }
+                    await transport.WriteAsync(data, 0, data.Length, cancellationToken).ConfigureAwait(false);
+                    return data.Length;
+                }).ConfigureAwait(false);
+        }
 
-                if (contentLength > 0 && stream != null && stream.CanRead)
+        private async Task<WriteResult> SendStreamInternalAsync(Guid guid, long contentLength, Stream stream, int timeoutMs, CancellationToken token)
+        {
+            return await ExecuteWriteAsync(
+                guid,
+                timeoutMs,
+                token,
+                async (client, transport, cancellationToken) =>
                 {
-                    long bytesRemaining = contentLength;
+                    byte[] buffer = ArrayPool<byte>.Shared.Rent(_Settings.StreamBufferSize);
+                    long totalWritten = 0;
 
-                    while (bytesRemaining > 0)
+                    try
                     {
-                        byte[] buffer = new byte[_Settings.StreamBufferSize];
-                        int bytesRead = stream.Read(buffer, 0, buffer.Length);
-                        if (bytesRead > 0)
+                        long bytesRemaining = contentLength;
+
+                        while (bytesRemaining > 0)
                         {
-                            if (!_Ssl)
-                            {
-                                client.NetworkStream.Write(buffer, 0, bytesRead);
-                                client.NetworkStream.Flush();
-                            }
-                            else
-                            {
-                                client.SslStream.Write(buffer, 0, bytesRead);
-                                client.SslStream.Flush();
-                            }
+                            int readLength = (int)Math.Min(buffer.Length, bytesRemaining);
+                            int bytesRead = await stream.ReadAsync(buffer, 0, readLength, cancellationToken).ConfigureAwait(false);
+                            if (bytesRead <= 0) throw new EndOfStreamException("Source stream ended before the requested number of bytes could be sent.");
 
-                            result.BytesWritten += bytesRead;
+                            await transport.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
 
-                            _Statistics.AddSentBytes(bytesRead);
+                            totalWritten += bytesRead;
                             bytesRemaining -= bytesRead;
                         }
                     }
-                }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    }
 
-                return result;
-            }
-            catch (TaskCanceledException)
-            {
-                result.Status = WriteResultStatus.Canceled;
-                return result;
-            }
-            catch (OperationCanceledException)
-            {
-                result.Status = WriteResultStatus.Canceled;
-                return result;
-            }
-            catch (Exception)
-            {
-                result.Status = WriteResultStatus.Disconnected;
-                return result;
-            }
-            finally
-            {
-                if (client != null) client.WriteSemaphore.Release();
-            }
+                    return totalWritten;
+                }).ConfigureAwait(false);
         }
 
-        // Timeout cancellation token
-        private WriteResult SendWithTimeoutInternal(int timeoutMs, Guid guid, long contentLength, Stream stream)
+        private async Task<WriteResult> ExecuteWriteAsync(Guid guid, int timeoutMs, CancellationToken callerToken, Func<ClientMetadata, Stream, CancellationToken, Task<long>> writer)
         {
             ClientMetadata client = GetClient(guid);
             if (client == null) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
 
-            var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_TokenSource.Token);
-            var timeoutToken = timeoutCts.Token;
-
             WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
+            bool semaphoreHeld = false;
 
-            Task<WriteResult> task = Task.Run(() =>
+            using (CancellationTokenSource linkedCts = CreateOperationTokenSource(client.Token, callerToken, timeoutMs))
             {
                 try
                 {
-                    while (!client.WriteSemaphore.Wait(10))
-                    {
-                        Task.Delay(10).Wait();
-                    }
+                    await client.WriteSemaphore.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+                    semaphoreHeld = true;
 
-                    if (contentLength > 0 && stream != null && stream.CanRead)
-                    {
-                        long bytesRemaining = contentLength;
+                    Stream transport = GetClientTransportStream(client);
+                    long bytesWritten = await writer(client, transport, linkedCts.Token).ConfigureAwait(false);
 
-                        while (bytesRemaining > 0)
-                        {
-                            byte[] buffer = new byte[_Settings.StreamBufferSize];
-                            int bytesRead = stream.Read(buffer, 0, buffer.Length);
-                            if (bytesRead > 0)
-                            {
-                                if (!_Ssl)
-                                {
-                                    client.NetworkStream.Write(buffer, 0, bytesRead);
-                                    client.NetworkStream.Flush();
-                                }
-                                else
-                                {
-                                    client.SslStream.Write(buffer, 0, bytesRead);
-                                    client.SslStream.Flush();
-                                }
-
-                                result.BytesWritten += bytesRead;
-
-                                _Statistics.AddSentBytes(bytesRead);
-                                bytesRemaining -= bytesRead;
-                            }
-                        }
-                    }
-
-                    return result;
-                }
-                catch (TaskCanceledException)
-                {
-                    result.Status = WriteResultStatus.Canceled;
+                    result.BytesWritten = bytesWritten;
+                    _Statistics.AddSentBytes(bytesWritten);
                     return result;
                 }
                 catch (OperationCanceledException)
                 {
-                    result.Status = WriteResultStatus.Canceled;
+                    result.Status = GetWriteCancellationStatus(client, timeoutMs, callerToken);
+                    if (result.Status == WriteResultStatus.Disconnected) RemoveAndDisposeClient(guid);
                     return result;
                 }
                 catch (Exception)
                 {
                     result.Status = WriteResultStatus.Disconnected;
+                    RemoveAndDisposeClient(guid);
                     return result;
                 }
                 finally
                 {
-                    if (client != null) client.WriteSemaphore.Release();
-                    timeoutCts.Dispose();
+                    if (semaphoreHeld) client.WriteSemaphore.Release();
                 }
-            }, timeoutToken);
-
-            bool success = task.Wait(TimeSpan.FromMilliseconds(timeoutMs));
-            timeoutCts.Cancel();
-
-            if (success)
-            {
-                return task.Result;
-            }
-            else
-            {
-                result.Status = WriteResultStatus.Timeout;
-                return result;
-            }
-        }
-
-        // Supplied cancellation token
-        private async Task<WriteResult> SendWithoutTimeoutInternalAsync(Guid guid, long contentLength, Stream stream, CancellationToken token)
-        {
-            ClientMetadata client = GetClient(guid);
-            if (client == null) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
-
-            using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, token))
-            {
-                CancellationToken linkedToken = linkedCts.Token;
-
-                WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
-
-                try
-                {
-                    while (true)
-                    {
-                        bool success = await client.WriteSemaphore.WaitAsync(10, token).ConfigureAwait(false);
-                        if (success) break;
-                        await Task.Delay(10, token).ConfigureAwait(false);
-                    }
-                }
-                catch (TaskCanceledException)
-                {
-                    result.Status = WriteResultStatus.Canceled;
-                    return result;
-                }
-                catch (OperationCanceledException)
-                {
-                    result.Status = WriteResultStatus.Canceled;
-                    return result;
-                }
-
-                Task<WriteResult> task = Task.Run(async () =>
-                {
-                    try
-                    {
-                        if (contentLength > 0 && stream != null && stream.CanRead)
-                        {
-                            long bytesRemaining = contentLength;
-
-                            while (bytesRemaining > 0)
-                            {
-                                byte[] buffer = new byte[_Settings.StreamBufferSize];
-                                int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-                                if (bytesRead > 0)
-                                {
-                                    if (!_Ssl)
-                                    {
-                                        await client.NetworkStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
-                                        await client.NetworkStream.FlushAsync(token).ConfigureAwait(false);
-                                    }
-                                    else
-                                    {
-                                        await client.SslStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
-                                        await client.SslStream.FlushAsync(token).ConfigureAwait(false);
-                                    }
-
-                                    result.BytesWritten += bytesRead;
-                                    _Statistics.AddSentBytes(bytesRead);
-                                    bytesRemaining -= bytesRead;
-                                }
-                            }
-                        }
-
-                        return result;
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        result.Status = WriteResultStatus.Canceled;
-                        return result;
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        result.Status = WriteResultStatus.Canceled;
-                        return result;
-                    }
-                    catch (Exception)
-                    {
-                        result.Status = WriteResultStatus.Disconnected;
-                        return result;
-                    }
-                },
-                linkedToken);
-
-                Task delay = Task.Delay(-1, token);
-                Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
-                linkedCts.Cancel();
-
-                if (client != null) client.WriteSemaphore.Release();
-
-                if (first == task)
-                {
-                    return task.Result;
-                }
-                else
-                {
-                    result.Status = WriteResultStatus.Canceled;
-                    return result;
-                }
-            }
-        }
-
-        // Supplied cancellation token
-        private async Task<WriteResult> SendWithTimeoutInternalAsync(int timeoutMs, Guid guid, long contentLength, Stream stream, CancellationToken token)
-        {
-            ClientMetadata client = GetClient(guid);
-            if (client == null) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
-
-            CancellationTokenSource timeoutCts = new CancellationTokenSource();
-            CancellationToken timeoutToken = timeoutCts.Token;
-
-            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
-
-            Task<WriteResult> task = Task.Run(async () =>
-            {
-                try
-                {
-                    while (true)
-                    {
-                        bool success = await client.WriteSemaphore.WaitAsync(10, token).ConfigureAwait(false);
-                        if (success) break;
-                        await Task.Delay(10).ConfigureAwait(false);
-                    }
-
-                    if (contentLength > 0 && stream != null && stream.CanRead)
-                    {
-                        long bytesRemaining = contentLength;
-
-                        while (bytesRemaining > 0)
-                        {
-                            byte[] buffer = new byte[_Settings.StreamBufferSize];
-                            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-                            if (bytesRead > 0)
-                            {
-                                if (!_Ssl)
-                                {
-                                    await client.NetworkStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
-                                    await client.NetworkStream.FlushAsync(token).ConfigureAwait(false);
-                                }
-                                else
-                                {
-                                    await client.SslStream.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
-                                    await client.SslStream.FlushAsync(token).ConfigureAwait(false);
-                                }
-
-                                result.BytesWritten += bytesRead;
-                                _Statistics.AddSentBytes(bytesRead);
-                                bytesRemaining -= bytesRead;
-                            }
-                        }
-                    }
-
-                    return result;
-                }
-                catch (TaskCanceledException)
-                {
-                    result.Status = WriteResultStatus.Canceled;
-                    return result;
-                }
-                catch (OperationCanceledException)
-                {
-                    result.Status = WriteResultStatus.Canceled;
-                    return result;
-                }
-                catch (Exception)
-                {
-                    result.Status = WriteResultStatus.Disconnected;
-                    return result;
-                }
-                finally
-                {
-                    if (client != null) client.WriteSemaphore.Release();
-                    timeoutCts.Dispose();
-                }
-            },
-            timeoutToken);
-
-            Task delay = Task.Delay(timeoutMs, timeoutToken);
-            Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
-            timeoutCts.Cancel();
-
-            if (first == task)
-            {
-                return task.Result;
-            }
-            else
-            {
-                result.Status = WriteResultStatus.Timeout;
-                return result;
             }
         }
 
@@ -1865,389 +1625,137 @@
 
         #region Read
 
-        // No cancellation token
         private ReadResult ReadWithoutTimeoutInternal(Guid guid, long count)
         {
-            if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
-
-            ClientMetadata client = GetClient(guid);
-            if (client == null) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
-
-            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
-
-            try
-            {
-                while (!client.ReadSemaphore.Wait(10))
-                {
-                    Task.Delay(10).Wait();
-                }
-
-                MemoryStream ms = new MemoryStream();
-                long bytesRemaining = count;
-
-                while (bytesRemaining > 0)
-                {
-                    byte[] buffer = null;
-                    if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
-                    else buffer = new byte[bytesRemaining];
-
-                    int bytesRead = 0;
-                    if (!_Ssl) bytesRead = client.NetworkStream.Read(buffer, 0, buffer.Length);
-                    else bytesRead = client.SslStream.Read(buffer, 0, buffer.Length);
-
-                    if (bytesRead > 0)
-                    {
-                        ms.Write(buffer, 0, bytesRead);
-                        result.BytesRead += bytesRead;
-                        _Statistics.AddReceivedBytes(bytesRead);
-                        bytesRemaining -= bytesRead;
-                    }
-                    else
-                    {
-                        // Zero bytes read indicates graceful disconnect
-                        result.Status = ReadResultStatus.Disconnected;
-                        result.DataStream = null;
-                        RemoveAndDisposeClient(guid);
-                        return result;
-                    }
-                }
-
-                ms.Seek(0, SeekOrigin.Begin);
-                result.DataStream = ms;
-                return result;
-            }
-            catch (TaskCanceledException)
-            {
-                result.Status = ReadResultStatus.Canceled;
-                return result;
-            }
-            catch (OperationCanceledException)
-            {
-                result.Status = ReadResultStatus.Canceled;
-                return result;
-            }
-            catch (Exception)
-            {
-                result.Status = ReadResultStatus.Disconnected;
-                result.BytesRead = 0;
-                result.DataStream = null;
-                RemoveAndDisposeClient(guid);
-                return result;
-            }
-            finally
-            {
-                if (client != null) client.ReadSemaphore.Release();
-            }
+            return ReadInternalAsync(guid, count, -1, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        // Timeout cancellation token
         private ReadResult ReadWithTimeoutInternal(int timeoutMs, Guid guid, long count)
         {
-            if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
-
-            ClientMetadata client = GetClient(guid);
-            if (client == null) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
-
-            CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_Token);
-            CancellationToken timeoutToken = timeoutCts.Token;
-
-            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
-
-            Task<ReadResult> task = Task.Run(() =>
-            {
-                try
-                {
-                    while (!client.ReadSemaphore.Wait(10))
-                    {
-                        Task.Delay(10).Wait();
-                    }
-
-                    MemoryStream ms = new MemoryStream();
-                    long bytesRemaining = count;
-
-                    while (bytesRemaining > 0)
-                    {
-                        byte[] buffer = null;
-                        if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
-                        else buffer = new byte[bytesRemaining];
-
-                        int bytesRead = 0;
-                        if (!_Ssl) bytesRead = client.NetworkStream.Read(buffer, 0, buffer.Length);
-                        else bytesRead = client.SslStream.Read(buffer, 0, buffer.Length);
-
-                        if (bytesRead > 0)
-                        {
-                            ms.Write(buffer, 0, bytesRead);
-                            result.BytesRead += bytesRead;
-                            _Statistics.AddReceivedBytes(bytesRead);
-                            bytesRemaining -= bytesRead;
-                        }
-                        else
-                        {
-                            // Zero bytes read indicates graceful disconnect
-                            result.Status = ReadResultStatus.Disconnected;
-                            result.DataStream = null;
-                            RemoveAndDisposeClient(guid);
-                            return result;
-                        }
-                    }
-
-                    ms.Seek(0, SeekOrigin.Begin);
-                    result.DataStream = ms;
-                    return result;
-                }
-                catch (TaskCanceledException)
-                {
-                    result.Status = ReadResultStatus.Canceled;
-                    return result;
-                }
-                catch (OperationCanceledException)
-                {
-                    result.Status = ReadResultStatus.Canceled;
-                    return result;
-                }
-                catch (Exception)
-                {
-                    result.Status = ReadResultStatus.Disconnected;
-                    result.BytesRead = 0;
-                    result.DataStream = null;
-                    RemoveAndDisposeClient(guid);
-                    return result;
-                }
-            }, timeoutToken);
-
-            bool success = task.Wait(TimeSpan.FromMilliseconds(timeoutMs));
-            if (client != null) client.ReadSemaphore.Release();
-
-            timeoutCts.Cancel();
-            timeoutCts.Dispose();
-
-            if (success)
-            {
-                return task.Result;
-            }
-            else
-            {
-                result.Status = ReadResultStatus.Timeout;
-                return result;
-            }
+            return ReadInternalAsync(guid, count, timeoutMs, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        // Supplied cancellation token
         private async Task<ReadResult> ReadWithoutTimeoutInternalAsync(Guid guid, long count, CancellationToken token)
         {
-            if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
-
-            ClientMetadata client = GetClient(guid);
-            if (client == null) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
-
-            using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, token))
-            {
-                CancellationToken linkedToken = linkedCts.Token;
-
-                ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
-
-                try
-                {
-                    while (true)
-                    {
-                        bool success = await client.ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
-                        if (success) break;
-                        await Task.Delay(10, token).ConfigureAwait(false);
-                    }
-                }
-                catch (TaskCanceledException)
-                {
-                    result.Status = ReadResultStatus.Canceled;
-                    return result;
-                }
-                catch (OperationCanceledException)
-                {
-                    result.Status = ReadResultStatus.Canceled;
-                    return result;
-                }
-
-                Task<ReadResult> task = Task.Run(async () =>
-                {
-                    try
-                    {
-                        MemoryStream ms = new MemoryStream();
-                        long bytesRemaining = count;
-
-                        while (bytesRemaining > 0)
-                        {
-                            byte[] buffer = null;
-                            if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
-                            else buffer = new byte[bytesRemaining];
-
-                            int bytesRead = 0;
-                            if (!_Ssl) bytesRead = await client.NetworkStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-                            else bytesRead = await client.SslStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-
-                            if (bytesRead > 0)
-                            {
-                                await ms.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
-                                result.BytesRead += bytesRead;
-                                _Statistics.AddReceivedBytes(bytesRead);
-                                bytesRemaining -= bytesRead;
-                            }
-                            else
-                            {
-                                // Zero bytes read indicates graceful disconnect
-                                result.Status = ReadResultStatus.Disconnected;
-                                result.DataStream = null;
-                                RemoveAndDisposeClient(guid);
-                                return result;
-                            }
-                        }
-
-                        ms.Seek(0, SeekOrigin.Begin);
-                        result.DataStream = ms;
-                        return result;
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        result.Status = ReadResultStatus.Canceled;
-                        return result;
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        result.Status = ReadResultStatus.Canceled;
-                        return result;
-                    }
-                    catch (Exception)
-                    {
-                        result.Status = ReadResultStatus.Disconnected;
-                        result.BytesRead = 0;
-                        result.DataStream = null;
-                        RemoveAndDisposeClient(guid);
-                        return result;
-                    }
-                },
-                linkedToken);
-
-                Task delay = Task.Delay(-1, token);
-                Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
-                linkedCts.Cancel();
-
-                if (client != null) client.ReadSemaphore.Release();
-
-                if (first == task)
-                {
-                    return task.Result;
-                }
-                else
-                {
-                    result.Status = ReadResultStatus.Canceled;
-                    return result;
-                }
-            }
+            return await ReadInternalAsync(guid, count, -1, token).ConfigureAwait(false);
         }
 
-        // Supplied cancellation token, timeout cancellation token
         private async Task<ReadResult> ReadWithTimeoutInternalAsync(int timeoutMs, Guid guid, long count, CancellationToken token)
         {
+            return await ReadInternalAsync(guid, count, timeoutMs, token).ConfigureAwait(false);
+        }
+
+        private async Task<ReadResult> ReadInternalAsync(Guid guid, long count, int timeoutMs, CancellationToken token)
+        {
             if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
+            if (count > Int32.MaxValue) throw new ArgumentOutOfRangeException(nameof(count), "Count must not exceed Int32.MaxValue.");
 
             ClientMetadata client = GetClient(guid);
             if (client == null) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
 
-            CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, token);
-            CancellationToken timeoutToken = timeoutCts.Token;
+            bool semaphoreHeld = false;
+            int totalCount = (int)count;
+            byte[] data = new byte[totalCount];
+            int offset = 0;
 
-            ReadResult result = new ReadResult(ReadResultStatus.Success, 0, null);
-
-            Task<ReadResult> task = Task.Run(async () =>
+            using (CancellationTokenSource linkedCts = CreateOperationTokenSource(client.Token, token, timeoutMs))
             {
                 try
                 {
-                    while (true)
+                    await client.ReadSemaphore.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+                    semaphoreHeld = true;
+
+                    Stream transport = GetClientTransportStream(client);
+
+                    while (offset < totalCount)
                     {
-                        bool success = await client.ReadSemaphore.WaitAsync(10, token).ConfigureAwait(false);
-                        if (success) break;
-                        await Task.Delay(10, token).ConfigureAwait(false);
-                    }
-
-                    MemoryStream ms = new MemoryStream();
-                    long bytesRemaining = count;
-
-                    while (bytesRemaining > 0)
-                    {
-                        byte[] buffer = null;
-                        if (bytesRemaining >= _Settings.StreamBufferSize) buffer = new byte[_Settings.StreamBufferSize];
-                        else buffer = new byte[bytesRemaining];
-
-                        int bytesRead = 0;
-                        if (!_Ssl) bytesRead = await client.NetworkStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-                        else bytesRead = await client.SslStream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-
-                        if (bytesRead > 0)
+                        int readLength = Math.Min(_Settings.StreamBufferSize, totalCount - offset);
+                        int bytesRead = await transport.ReadAsync(data, offset, readLength, linkedCts.Token).ConfigureAwait(false);
+                        if (bytesRead <= 0)
                         {
-                            await ms.WriteAsync(buffer, 0, bytesRead, token).ConfigureAwait(false);
-                            result.BytesRead += bytesRead;
-                            _Statistics.AddReceivedBytes(bytesRead);
-                            bytesRemaining -= bytesRead;
-                        }
-                        else
-                        {
-                            // Zero bytes read indicates graceful disconnect
-                            result.Status = ReadResultStatus.Disconnected;
-                            result.DataStream = null;
                             RemoveAndDisposeClient(guid);
-                            return result;
+                            return CreateReadResult(ReadResultStatus.Disconnected, data, offset);
                         }
+
+                        offset += bytesRead;
+                        _Statistics.AddReceivedBytes(bytesRead);
                     }
 
-                    ms.Seek(0, SeekOrigin.Begin);
-                    result.DataStream = ms;
-                    return result;
-                }
-                catch (TaskCanceledException)
-                {
-                    result.Status = ReadResultStatus.Canceled;
-                    return result;
+                    return CreateReadResult(ReadResultStatus.Success, data, offset);
                 }
                 catch (OperationCanceledException)
                 {
-                    result.Status = ReadResultStatus.Canceled;
-                    return result;
+                    ReadResultStatus status = GetReadCancellationStatus(client, timeoutMs, token);
+                    if (status == ReadResultStatus.Disconnected) RemoveAndDisposeClient(guid);
+                    return CreateReadResult(status, data, offset);
                 }
                 catch (Exception)
                 {
-                    result.Status = ReadResultStatus.Disconnected;
-                    result.BytesRead = 0;
-                    result.DataStream = null;
                     RemoveAndDisposeClient(guid);
-                    return result;
+                    return CreateReadResult(ReadResultStatus.Disconnected, data, offset);
                 }
-            },
-            timeoutToken);
-
-            Task delay = Task.Delay(timeoutMs, timeoutToken);
-            Task first = await Task.WhenAny(task, delay).ConfigureAwait(false);
-            if (client != null) client.ReadSemaphore.Release();
-
-            timeoutCts.Cancel();
-            timeoutCts.Dispose();
-
-            if (first == task)
-            {
-                return task.Result;
-            }
-            else
-            {
-                if (token.IsCancellationRequested)
+                finally
                 {
-                    result.Status = ReadResultStatus.Canceled;
-                    return result;
+                    if (semaphoreHeld) client.ReadSemaphore.Release();
                 }
-
-                result.Status = ReadResultStatus.Timeout;
-                return result;
             }
         }
 
         #endregion
+
+        private CancellationTokenSource CreateOperationTokenSource(CancellationToken connectionToken, CancellationToken callerToken, int timeoutMs)
+        {
+            CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, connectionToken, callerToken);
+            if (timeoutMs > 0) linkedCts.CancelAfter(timeoutMs);
+            return linkedCts;
+        }
+
+        private WriteResultStatus GetWriteCancellationStatus(ClientMetadata client, int timeoutMs, CancellationToken callerToken)
+        {
+            if (callerToken.IsCancellationRequested) return WriteResultStatus.Canceled;
+            if (_Token.IsCancellationRequested || client == null || client.Token.IsCancellationRequested || !ClientExists(client.Guid)) return WriteResultStatus.Disconnected;
+            if (timeoutMs > 0) return WriteResultStatus.Timeout;
+            return WriteResultStatus.Canceled;
+        }
+
+        private ReadResultStatus GetReadCancellationStatus(ClientMetadata client, int timeoutMs, CancellationToken callerToken)
+        {
+            if (callerToken.IsCancellationRequested) return ReadResultStatus.Canceled;
+            if (_Token.IsCancellationRequested || client == null || client.Token.IsCancellationRequested || !ClientExists(client.Guid)) return ReadResultStatus.Disconnected;
+            if (timeoutMs > 0) return ReadResultStatus.Timeout;
+            return ReadResultStatus.Canceled;
+        }
+
+        private Stream GetClientTransportStream(ClientMetadata client)
+        {
+            if (_Ssl)
+            {
+                if (client?.SslStream == null) throw new IOException("SSL stream is not connected.");
+                return client.SslStream;
+            }
+
+            if (client?.NetworkStream == null) throw new IOException("Network stream is not connected.");
+            return client.NetworkStream;
+        }
+
+        private ReadResult CreateReadResult(ReadResultStatus status, byte[] buffer, int bytesRead)
+        {
+            if (bytesRead <= 0) return new ReadResult(status, 0, null);
+
+            byte[] data;
+            if (buffer != null && bytesRead == buffer.Length)
+            {
+                data = buffer;
+            }
+            else
+            {
+                data = new byte[bytesRead];
+                if (buffer != null) Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
+            }
+
+            MemoryStream ms = new MemoryStream(data, 0, bytesRead, false, true);
+            return new ReadResult(status, bytesRead, ms, data);
+        }
 
         #region Client
 
@@ -2263,13 +1771,7 @@
         {
             lock (_ClientsLock)
             {
-                if (_Clients.Any(p => p.Value.IpPort.Equals(ipPort)))
-                {
-                    ClientMetadata md = _Clients.First(p => p.Value.IpPort.Equals(ipPort)).Value;
-                    return md.Guid;
-                }
-
-                return Guid.Empty;
+                return _ClientIdsByIpPort.TryGetValue(ipPort, out Guid guid) ? guid : Guid.Empty;
             }
         }
 
@@ -2277,20 +1779,26 @@
         {
             lock (_ClientsLock)
             {
-                return (_Clients.Keys.Contains(guid));
+                return _Clients.ContainsKey(guid);
             }
         }
 
         private void RemoveAndDisposeClient(Guid guid)
         {
+            ClientMetadata client = null;
+
             lock (_ClientsLock)
             {
-                if (_Clients.TryGetValue(guid, out ClientMetadata client))
+                if (_Clients.TryGetValue(guid, out client))
                 {
-                    client.Dispose();
                     _Clients.Remove(guid);
+                    _ClientIdsByIpPort.Remove(client.IpPort);
                 }
+            }
 
+            if (client != null)
+            {
+                client.Dispose();
                 Logger?.Invoke(_Header + "removed: " + client.ToString());
             }
         }
@@ -2304,8 +1812,7 @@
                     throw new KeyNotFoundException("Client with GUID " + guid.ToString() + " not found.");
                 }
 
-                if (!_Ssl) return client.NetworkStream;
-                else return client.SslStream;
+                return GetClientTransportStream(client);
             }
         }
 
@@ -2315,6 +1822,7 @@
             {
                 Logger?.Invoke(_Header + "adding client " + client.ToString());
                 _Clients.Add(client.Guid, client);
+                _ClientIdsByIpPort[client.IpPort] = client.Guid;
             }
         }
 
@@ -2322,12 +1830,63 @@
         {
             lock (_ClientsLock)
             {
-                if (_Clients.ContainsKey(guid))
-                {
-                    return _Clients[guid];
-                }
+                return _Clients.TryGetValue(guid, out ClientMetadata client) ? client : null;
+            }
+        }
 
-                return null;
+        private int GetClientCount()
+        {
+            lock (_ClientsLock)
+            {
+                return _Clients.Count;
+            }
+        }
+
+        private bool IsClientPermitted(string clientIp)
+        {
+            List<string> permitted = _Settings.PermittedIPs;
+            if (permitted == null || permitted.Count < 1) return true;
+
+            for (int i = 0; i < permitted.Count; i++)
+            {
+                if (String.Equals(permitted[i], clientIp, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsClientBlocked(string clientIp)
+        {
+            List<string> blocked = _Settings.BlockedIPs;
+            if (blocked == null || blocked.Count < 1) return false;
+
+            for (int i = 0; i < blocked.Count; i++)
+            {
+                if (String.Equals(blocked[i], clientIp, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsClientAuthorized(string clientIp, int clientPort)
+        {
+            if (_Callbacks?.AuthorizeConnection == null) return true;
+
+            try
+            {
+                return _Callbacks.AuthorizeConnection(clientIp, clientPort);
+            }
+            catch (Exception e)
+            {
+                Logger?.Invoke($"{_Header}authorization callback exception for {clientIp}:{clientPort}: {e.Message}");
+                _Events.HandleExceptionEncountered(this, e);
+                return false;
             }
         }
 

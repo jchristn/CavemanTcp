@@ -34,6 +34,11 @@
             {
                 if (_Data != null)
                 {
+                    if (DataStream != null && DataStream.CanSeek)
+                    {
+                        DataStream.Seek(0, SeekOrigin.End);
+                    }
+
                     return _Data;
                 }
                 else
@@ -70,6 +75,14 @@
             Status = status;
             BytesRead = bytesRead;
             DataStream = data;
+        }
+
+        internal ReadResult(ReadResultStatus status, long bytesRead, MemoryStream data, byte[] cachedData)
+        {
+            Status = status;
+            BytesRead = bytesRead;
+            DataStream = data;
+            _Data = cachedData;
         }
     }
 

@@ -67,7 +67,7 @@
             }
             set
             {
-                if (value > -1 || value < 1) throw new ArgumentException("Poll interval microseconds must be -1 (indefinite) or greater than zero.");
+                if (value != -1 && value < 1) throw new ArgumentException("Poll interval microseconds must be -1 (use default) or greater than zero.");
                 _PollIntervalMicroseconds = value;
             }
         }
@@ -77,7 +77,7 @@
         #region Private-Members
 
         private int _StreamBufferSize = 65536;
-        private int _PollIntervalMicroseconds = -1;
+        private int _PollIntervalMicroseconds = 250000;
 
         #endregion
 
