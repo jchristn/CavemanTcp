@@ -982,6 +982,28 @@ namespace Test.Shared
             }
         }
 
+        public static async Task LargePayloadServerToClientRoundTrip()
+        {
+            var pair = await CreateConnectedPairAsync().ConfigureAwait(false);
+
+            try
+            {
+                byte[] payload = CreatePatternedPayload(128 * 1024);
+                WriteResult write = await pair.Server.SendAsync(pair.ServerClient.Guid, payload).ConfigureAwait(false);
+                TestAssert.Equal(WriteResultStatus.Success, write.Status);
+                TestAssert.Equal((long)payload.Length, write.BytesWritten);
+
+                ReadResult read = await pair.Client.ReadAsync(payload.Length).ConfigureAwait(false);
+                TestAssert.Equal(ReadResultStatus.Success, read.Status);
+                TestAssert.Equal((long)payload.Length, read.BytesRead);
+                AssertPayloadEquals(payload, read.Data);
+            }
+            finally
+            {
+                CleanupPair(pair);
+            }
+        }
+
         public static async Task MultipleClientsReceiveDistinctMessages()
         {
             int port = GetNextPort();
@@ -1123,6 +1145,60 @@ namespace Test.Shared
                 TestAssert.Equal(ReadResultStatus.Timeout, serverAsync.Status);
                 TestAssert.Equal(4L, serverAsync.BytesRead);
                 TestAssert.Equal("node", Encoding.UTF8.GetString(serverAsync.Data));
+            }
+            finally
+            {
+                CleanupPair(serverAsyncPair);
+            }
+        }
+
+        public static async Task ReadWithTimeoutReturnsTimeoutWithNoDataWhenNothingIsSent()
+        {
+            void AssertEmptyTimeout(ReadResult result)
+            {
+                TestAssert.Equal(ReadResultStatus.Timeout, result.Status);
+                TestAssert.Equal(0L, result.BytesRead);
+                TestAssert.Null(result.Data);
+            }
+
+            var clientSyncPair = await CreateConnectedPairAsync().ConfigureAwait(false);
+
+            try
+            {
+                AssertEmptyTimeout(clientSyncPair.Client.ReadWithTimeout(200, 8));
+            }
+            finally
+            {
+                CleanupPair(clientSyncPair);
+            }
+
+            var clientAsyncPair = await CreateConnectedPairAsync().ConfigureAwait(false);
+
+            try
+            {
+                AssertEmptyTimeout(await clientAsyncPair.Client.ReadWithTimeoutAsync(200, 8).ConfigureAwait(false));
+            }
+            finally
+            {
+                CleanupPair(clientAsyncPair);
+            }
+
+            var serverSyncPair = await CreateConnectedPairAsync().ConfigureAwait(false);
+
+            try
+            {
+                AssertEmptyTimeout(serverSyncPair.Server.ReadWithTimeout(200, serverSyncPair.ServerClient.Guid, 8));
+            }
+            finally
+            {
+                CleanupPair(serverSyncPair);
+            }
+
+            var serverAsyncPair = await CreateConnectedPairAsync().ConfigureAwait(false);
+
+            try
+            {
+                AssertEmptyTimeout(await serverAsyncPair.Server.ReadWithTimeoutAsync(200, serverAsyncPair.ServerClient.Guid, 8).ConfigureAwait(false));
             }
             finally
             {
