@@ -20,8 +20,11 @@ Client and server connection monitors are available to detect graceful closes an
 
 As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; unfortunately .NET Standard does not offer this support, so it is not present for apps using CavemanTcp targeted to .NET Standard.
 
-## New in v2.1.0
+## New in v2.1.1
 
+- BCL metrics and tracing through `System.Diagnostics.Metrics.Meter` and `System.Diagnostics.ActivitySource`
+- Stable telemetry source names via `CavemanTcpTelemetry.MeterName` and `CavemanTcpTelemetry.ActivitySourceName`
+- Client/server lifecycle, connection, send, read, TLS, authorization, direct stream, and not-found outcomes are measurable by OpenTelemetry/Radiant/Prometheus-style hosts
 - Target `netstandard2.0`, `netstandard2.1`, `net462`, `net472`, `net48`, `net8.0`, and `net10.0`
 - Lightweight socket-poll connection monitoring for faster disconnect detection
 - True cancellable async timeout handling for read and write APIs
@@ -136,6 +139,22 @@ rr = await client.ReadWithTimeoutAsync([ms], [count]);
 - `BytesRead` - the number of bytes read from the socket.
 - `DataStream` - a `MemoryStream` containing the requested data.
 - `Data` - a `byte[]` representation of `DataStream`.  Using this property will fully read `DataStream` to the end.
+
+## Telemetry
+
+CavemanTcp emits metrics and traces using only the .NET diagnostics APIs.  Applications can subscribe to `CavemanTcpTelemetry.MeterName` (`"CavemanTcp"`) and `CavemanTcpTelemetry.ActivitySourceName` (`"CavemanTcp"`) from OpenTelemetry, Radiant, `dotnet-counters`, Prometheus exporters, or another diagnostics host.
+
+Metrics use dotted names and low-cardinality tags such as role, operation, status, and transport:
+
+- `cavemantcp.operations`
+- `cavemantcp.operation.duration`
+- `cavemantcp.bytes.sent`
+- `cavemantcp.bytes.received`
+- `cavemantcp.connections.opened`
+- `cavemantcp.connections.closed`
+- `cavemantcp.connections.active`
+- `cavemantcp.connections.declined`
+- `cavemantcp.exceptions`
 
 ## Local vs External Connections
 

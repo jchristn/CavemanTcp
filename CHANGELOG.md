@@ -2,8 +2,12 @@
 
 ## Current Version
 
-v2.1.0
+v2.1.1
 
+- Add BCL metrics and tracing with stable `CavemanTcp` meter/activity source names
+- Instrument client/server lifecycle, connections, send/read operations, TLS handshakes, authorization callbacks, direct stream APIs, and not-found outcomes
+- Emit low-cardinality metric tags for role, operation, status, transport, and disconnect reason
+- Configure package metadata for portable PDB symbol packages with Source Link
 - Target `netstandard2.0`, `netstandard2.1`, `net462`, `net472`, `net48`, `net8.0`, and `net10.0`
 - Replace heavy connection probing with lightweight socket-poll monitoring
 - Rework timeout handling to cancel the underlying async I/O operations

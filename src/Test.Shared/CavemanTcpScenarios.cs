@@ -5,6 +5,8 @@ namespace Test.Shared
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Diagnostics.Metrics;
     using System.IO;
     using System.Linq;
     using System.Net;
@@ -211,6 +213,91 @@ namespace Test.Shared
             {
                 CleanupPair(pair);
             }
+        }
+
+        public static async Task TelemetryEmitsMetricsAndActivitiesForRoundTrip()
+        {
+            ConcurrentBag<string> metricNames = new ConcurrentBag<string>();
+            ConcurrentBag<string> operationStatuses = new ConcurrentBag<string>();
+            ConcurrentBag<string> activityNames = new ConcurrentBag<string>();
+
+            using MeterListener meterListener = new MeterListener();
+            meterListener.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == CavemanTcpTelemetry.MeterName)
+                {
+                    listener.EnableMeasurementEvents(instrument);
+                }
+            };
+            meterListener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
+            {
+                metricNames.Add(instrument.Name);
+
+                if (String.Equals(instrument.Name, CavemanTcpTelemetry.OperationsMetricName, StringComparison.Ordinal))
+                {
+                    foreach (KeyValuePair<string, object> tag in tags)
+                    {
+                        if (String.Equals(tag.Key, "cavemantcp.status", StringComparison.Ordinal) && tag.Value != null)
+                        {
+                            operationStatuses.Add(tag.Value.ToString());
+                        }
+                    }
+                }
+            });
+            meterListener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) =>
+            {
+                metricNames.Add(instrument.Name);
+            });
+            meterListener.Start();
+
+            using ActivityListener activityListener = new ActivityListener
+            {
+                ShouldListenTo = source => String.Equals(source.Name, CavemanTcpTelemetry.ActivitySourceName, StringComparison.Ordinal),
+                Sample = (ref ActivityCreationOptions<ActivityContext> options) => ActivitySamplingResult.AllDataAndRecorded,
+                ActivityStopped = activity => activityNames.Add(activity.OperationName)
+            };
+            ActivitySource.AddActivityListener(activityListener);
+
+            var pair = await CreateConnectedPairAsync().ConfigureAwait(false);
+
+            try
+            {
+                byte[] clientPayload = Encoding.UTF8.GetBytes("telemetry-client");
+                byte[] serverPayload = Encoding.UTF8.GetBytes("telemetry-server");
+
+                WriteResult clientWrite = await pair.Client.SendAsync(clientPayload).ConfigureAwait(false);
+                TestAssert.Equal(WriteResultStatus.Success, clientWrite.Status);
+                ReadResult serverRead = await pair.Server.ReadAsync(pair.ServerClient.Guid, clientPayload.Length).ConfigureAwait(false);
+                TestAssert.Equal(ReadResultStatus.Success, serverRead.Status);
+                AssertPayloadEquals(clientPayload, serverRead.Data);
+
+                WriteResult serverWrite = await pair.Server.SendAsync(pair.ServerClient.Guid, serverPayload).ConfigureAwait(false);
+                TestAssert.Equal(WriteResultStatus.Success, serverWrite.Status);
+                ReadResult clientRead = await pair.Client.ReadAsync(serverPayload.Length).ConfigureAwait(false);
+                TestAssert.Equal(ReadResultStatus.Success, clientRead.Status);
+                AssertPayloadEquals(serverPayload, clientRead.Data);
+            }
+            finally
+            {
+                CleanupPair(pair);
+            }
+
+            TestAssert.True(metricNames.Contains(CavemanTcpTelemetry.OperationsMetricName), "Operation counter was not emitted.");
+            TestAssert.True(metricNames.Contains(CavemanTcpTelemetry.OperationDurationMetricName), "Operation duration histogram was not emitted.");
+            TestAssert.True(metricNames.Contains(CavemanTcpTelemetry.BytesSentMetricName), "Bytes sent counter was not emitted.");
+            TestAssert.True(metricNames.Contains(CavemanTcpTelemetry.BytesReceivedMetricName), "Bytes received counter was not emitted.");
+            TestAssert.True(metricNames.Contains(CavemanTcpTelemetry.ConnectionsOpenedMetricName), "Connections opened counter was not emitted.");
+            TestAssert.True(metricNames.Contains(CavemanTcpTelemetry.ConnectionsClosedMetricName), "Connections closed counter was not emitted.");
+            TestAssert.True(metricNames.Contains(CavemanTcpTelemetry.ActiveConnectionsMetricName), "Active connections up/down counter was not emitted.");
+            TestAssert.True(operationStatuses.Contains("success"), "Operation status tag was not emitted.");
+
+            TestAssert.True(activityNames.Contains("cavemantcp.client.connect"), "Client connect activity was not emitted.");
+            TestAssert.True(activityNames.Contains("cavemantcp.client.send"), "Client send activity was not emitted.");
+            TestAssert.True(activityNames.Contains("cavemantcp.client.read"), "Client read activity was not emitted.");
+            TestAssert.True(activityNames.Contains("cavemantcp.server.start"), "Server start activity was not emitted.");
+            TestAssert.True(activityNames.Contains("cavemantcp.server.accept"), "Server accept activity was not emitted.");
+            TestAssert.True(activityNames.Contains("cavemantcp.server.send"), "Server send activity was not emitted.");
+            TestAssert.True(activityNames.Contains("cavemantcp.server.read"), "Server read activity was not emitted.");
         }
 
         public static Task ClientConnectFailureRaisesExceptionEvent()

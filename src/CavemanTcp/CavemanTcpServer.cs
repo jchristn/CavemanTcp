@@ -4,6 +4,7 @@
     using System.Buffers;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.IO;
     using System.Linq;
     using System.Net;
@@ -365,20 +366,48 @@
         /// </summary>
         public void Start()
         {
-            if (_IsListening) throw new InvalidOperationException("CavemanTcpServer is already running.");
+            long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+            Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                CavemanTcpInstrumentation.RoleServer,
+                CavemanTcpInstrumentation.OperationStart,
+                _Ssl,
+                ActivityKind.Server);
+            CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+            string telemetryStatus = CavemanTcpInstrumentation.StatusSuccess;
 
-            _Listener = new TcpListener(_IPAddress, _Port);
-            _Listener.Start();
-            _ExternalTokenRegistration.Dispose();
-            _ExternalTokenRegistration = default;
+            try
+            {
+                if (_IsListening) throw new InvalidOperationException("CavemanTcpServer is already running.");
 
-            _TokenSource = new CancellationTokenSource();
-            _Token = _TokenSource.Token;
+                _Listener = new TcpListener(_IPAddress, _Port);
+                _Listener.Start();
+                _ExternalTokenRegistration.Dispose();
+                _ExternalTokenRegistration = default;
 
-            _Statistics = new CavemanTcpStatistics();
-            _AcceptConnections = Task.Run(() => AcceptConnections(), _Token);
+                _TokenSource = new CancellationTokenSource();
+                _Token = _TokenSource.Token;
 
-            Logger?.Invoke(_Header + "started");
+                _Statistics = new CavemanTcpStatistics();
+                _AcceptConnections = Task.Run(() => AcceptConnections(), _Token);
+
+                Logger?.Invoke(_Header + "started");
+            }
+            catch (Exception e)
+            {
+                telemetryStatus = CavemanTcpInstrumentation.ToStatus(e);
+                CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationStart, e, telemetryActivity);
+                throw;
+            }
+            finally
+            {
+                CavemanTcpInstrumentation.RecordOperation(
+                    CavemanTcpInstrumentation.RoleServer,
+                    CavemanTcpInstrumentation.OperationStart,
+                    telemetryStatus,
+                    telemetryStart);
+                CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus);
+                if (telemetryActivity != null) telemetryActivity.Dispose();
+            }
         }
 
         /// <summary>
@@ -388,39 +417,67 @@
         /// <returns>Task.</returns>
         public Task StartAsync(CancellationToken token = default)
         {
-            if (_IsListening) throw new InvalidOperationException("CavemanTcpServer is already running.");
+            long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+            Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                CavemanTcpInstrumentation.RoleServer,
+                CavemanTcpInstrumentation.OperationStartAsync,
+                _Ssl,
+                ActivityKind.Server);
+            CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+            string telemetryStatus = CavemanTcpInstrumentation.StatusSuccess;
 
-            _Listener = new TcpListener(_IPAddress, _Port);
-            _Listener.Start();
-            _ExternalTokenRegistration.Dispose();
-            _ExternalTokenRegistration = default;
-
-            if (token != default(CancellationToken))
+            try
             {
-                _TokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
-                _Token = _TokenSource.Token;
-                _ExternalTokenRegistration = token.Register(() =>
+                if (_IsListening) throw new InvalidOperationException("CavemanTcpServer is already running.");
+
+                _Listener = new TcpListener(_IPAddress, _Port);
+                _Listener.Start();
+                _ExternalTokenRegistration.Dispose();
+                _ExternalTokenRegistration = default;
+
+                if (token != default(CancellationToken))
                 {
-                    try
+                    _TokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    _Token = _TokenSource.Token;
+                    _ExternalTokenRegistration = token.Register(() =>
                     {
-                        _Listener?.Stop();
-                    }
-                    catch
-                    {
-                    }
-                });
+                        try
+                        {
+                            _Listener?.Stop();
+                        }
+                        catch
+                        {
+                        }
+                    });
+                }
+                else
+                {
+                    _TokenSource = new CancellationTokenSource();
+                    _Token = _TokenSource.Token;
+                }
+
+                _Statistics = new CavemanTcpStatistics();
+                _AcceptConnections = Task.Run(() => AcceptConnections(), _Token);
+
+                Logger?.Invoke(_Header + "started");
+                return _AcceptConnections; // sets _IsListening
             }
-            else
+            catch (Exception e)
             {
-                _TokenSource = new CancellationTokenSource();
-                _Token = _TokenSource.Token;
+                telemetryStatus = CavemanTcpInstrumentation.ToStatus(e);
+                CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationStartAsync, e, telemetryActivity);
+                throw;
             }
-
-            _Statistics = new CavemanTcpStatistics();
-            _AcceptConnections = Task.Run(() => AcceptConnections(), _Token);
-
-            Logger?.Invoke(_Header + "started");
-            return _AcceptConnections; // sets _IsListening 
+            finally
+            {
+                CavemanTcpInstrumentation.RecordOperation(
+                    CavemanTcpInstrumentation.RoleServer,
+                    CavemanTcpInstrumentation.OperationStartAsync,
+                    telemetryStatus,
+                    telemetryStart);
+                CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus);
+                if (telemetryActivity != null) telemetryActivity.Dispose();
+            }
         }
 
         /// <summary>
@@ -428,15 +485,43 @@
         /// </summary>
         public void Stop()
         {
-            if (!_IsListening) throw new InvalidOperationException("CavemanTcpServer is not running.");
+            long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+            Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                CavemanTcpInstrumentation.RoleServer,
+                CavemanTcpInstrumentation.OperationStop,
+                _Ssl,
+                ActivityKind.Server);
+            CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+            string telemetryStatus = CavemanTcpInstrumentation.StatusSuccess;
 
-            _IsListening = false;
-            _Listener.Stop();
-            _TokenSource.Cancel();
-            _ExternalTokenRegistration.Dispose();
-            _ExternalTokenRegistration = default;
+            try
+            {
+                if (!_IsListening) throw new InvalidOperationException("CavemanTcpServer is not running.");
 
-            Logger?.Invoke(_Header + "stopped");
+                _IsListening = false;
+                _Listener.Stop();
+                _TokenSource.Cancel();
+                _ExternalTokenRegistration.Dispose();
+                _ExternalTokenRegistration = default;
+
+                Logger?.Invoke(_Header + "stopped");
+            }
+            catch (Exception e)
+            {
+                telemetryStatus = CavemanTcpInstrumentation.ToStatus(e);
+                CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationStop, e, telemetryActivity);
+                throw;
+            }
+            finally
+            {
+                CavemanTcpInstrumentation.RecordOperation(
+                    CavemanTcpInstrumentation.RoleServer,
+                    CavemanTcpInstrumentation.OperationStop,
+                    telemetryStatus,
+                    telemetryStart);
+                CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus);
+                if (telemetryActivity != null) telemetryActivity.Dispose();
+            }
         }
 
         /// <summary>
@@ -445,7 +530,35 @@
         /// <returns>IEnumerable of ClientMetadata.</returns>
         public IEnumerable<ClientMetadata> GetClients()
         {
-            return GetClientList();
+            long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+            Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                CavemanTcpInstrumentation.RoleServer,
+                CavemanTcpInstrumentation.OperationGetClients,
+                _Ssl,
+                ActivityKind.Internal);
+            CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+            string telemetryStatus = CavemanTcpInstrumentation.StatusSuccess;
+
+            try
+            {
+                return GetClientList();
+            }
+            catch (Exception e)
+            {
+                telemetryStatus = CavemanTcpInstrumentation.ToStatus(e);
+                CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationGetClients, e, telemetryActivity);
+                throw;
+            }
+            finally
+            {
+                CavemanTcpInstrumentation.RecordOperation(
+                    CavemanTcpInstrumentation.RoleServer,
+                    CavemanTcpInstrumentation.OperationGetClients,
+                    telemetryStatus,
+                    telemetryStart);
+                CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus);
+                if (telemetryActivity != null) telemetryActivity.Dispose();
+            }
         }
 
         #endregion
@@ -491,7 +604,6 @@
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
             if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             return SendBytesWithoutTimeoutInternal(guid, data);
         }
 
@@ -520,7 +632,6 @@
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
@@ -591,7 +702,6 @@
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
             if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             return SendBytesWithTimeoutInternal(timeoutMs, guid, data);
         }
 
@@ -624,7 +734,6 @@
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
@@ -694,7 +803,6 @@
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
             if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             return await SendBytesWithoutTimeoutInternalAsync(guid, data, token).ConfigureAwait(false);
         }
 
@@ -725,7 +833,6 @@
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
@@ -800,7 +907,6 @@
             if (data == null || data.Length < 1) data = Array.Empty<byte>();
             if (data.Length < 1) throw new ArgumentException("No data supplied in stream.");
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             return await SendBytesWithTimeoutInternalAsync(timeoutMs, guid, data, token).ConfigureAwait(false);
         }
 
@@ -835,7 +941,6 @@
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
             if (contentLength < 1) throw new ArgumentException("No data supplied in stream.");
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
@@ -873,7 +978,6 @@
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return;
             DisconnectClient(guid);
         }
 
@@ -883,12 +987,44 @@
         /// <param name="guid">Client GUID.</param>
         public void DisconnectClient(Guid guid)
         {
-            ClientMetadata client = GetClient(guid);
-            if (client != null)
+            long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+            Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                CavemanTcpInstrumentation.RoleServer,
+                CavemanTcpInstrumentation.OperationDisconnect,
+                _Ssl,
+                ActivityKind.Internal);
+            CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+            string telemetryStatus = CavemanTcpInstrumentation.StatusSuccess;
+
+            try
             {
+                ClientMetadata client = GetClient(guid);
+                if (client == null)
+                {
+                    telemetryStatus = CavemanTcpInstrumentation.StatusClientNotFound;
+                    return;
+                }
+
+                CavemanTcpInstrumentation.SetClient(telemetryActivity, client);
                 _Events.HandleClientDisconnected(this, new ClientDisconnectedEventArgs(client, DisconnectReason.Kicked));
 
-                RemoveAndDisposeClient(guid);            
+                RemoveAndDisposeClient(guid, DisconnectReason.Kicked);
+            }
+            catch (Exception e)
+            {
+                telemetryStatus = CavemanTcpInstrumentation.ToStatus(e);
+                CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationDisconnect, e, telemetryActivity);
+                throw;
+            }
+            finally
+            {
+                CavemanTcpInstrumentation.RecordOperation(
+                    CavemanTcpInstrumentation.RoleServer,
+                    CavemanTcpInstrumentation.OperationDisconnect,
+                    telemetryStatus,
+                    telemetryStart);
+                CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus);
+                if (telemetryActivity != null) telemetryActivity.Dispose();
             }
         }
 
@@ -907,7 +1043,6 @@
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
             return ReadWithoutTimeoutInternal(guid, (long)count);
         }
@@ -941,7 +1076,6 @@
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
             return ReadWithTimeoutInternal(timeoutMs, guid, (long)count);
         }
@@ -976,7 +1110,6 @@
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
             return await ReadWithoutTimeoutInternalAsync(guid, (long)count, token).ConfigureAwait(false);
         }
@@ -1012,7 +1145,6 @@
             if (timeoutMs < -1 || timeoutMs == 0) throw new ArgumentException("TimeoutMs must be -1 (no timeout) or a positive integer.");
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
             if (count < 1) throw new ArgumentException("Count must be greater than zero.");
             return await ReadWithTimeoutInternalAsync(timeoutMs, guid, (long)count, token).ConfigureAwait(false);
         }
@@ -1046,7 +1178,7 @@
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             Guid guid = ClientGuidFromIpPort(ipPort);
-            return GetClientStream(guid);
+            return GetStream(guid);
         }
 
         /// <summary>
@@ -1056,7 +1188,47 @@
         /// <returns>Stream.</returns>
         public Stream GetStream(Guid guid)
         {
-            return GetClientStream(guid);
+            long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+            Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                CavemanTcpInstrumentation.RoleServer,
+                CavemanTcpInstrumentation.OperationGetStream,
+                _Ssl,
+                ActivityKind.Internal);
+            CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+            string telemetryStatus = CavemanTcpInstrumentation.StatusSuccess;
+
+            try
+            {
+                ClientMetadata client = GetClient(guid);
+                if (client == null)
+                {
+                    telemetryStatus = CavemanTcpInstrumentation.StatusClientNotFound;
+                    throw new KeyNotFoundException("Client with GUID " + guid.ToString() + " not found.");
+                }
+
+                CavemanTcpInstrumentation.SetClient(telemetryActivity, client);
+                return GetClientTransportStream(client);
+            }
+            catch (Exception e)
+            {
+                if (!String.Equals(telemetryStatus, CavemanTcpInstrumentation.StatusClientNotFound, StringComparison.Ordinal))
+                {
+                    telemetryStatus = CavemanTcpInstrumentation.ToStatus(e);
+                }
+
+                CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationGetStream, e, telemetryActivity);
+                throw;
+            }
+            finally
+            {
+                CavemanTcpInstrumentation.RecordOperation(
+                    CavemanTcpInstrumentation.RoleServer,
+                    CavemanTcpInstrumentation.OperationGetStream,
+                    telemetryStatus,
+                    telemetryStart);
+                CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus);
+                if (telemetryActivity != null) telemetryActivity.Dispose();
+            }
         }
 
         /// <summary>
@@ -1069,8 +1241,7 @@
         {
             if (String.IsNullOrEmpty(ipPort)) throw new ArgumentNullException(nameof(ipPort));
             Guid guid = ClientGuidFromIpPort(ipPort);
-            if (guid == Guid.Empty) return false;
-            return true; // ClientGuidFromIpPort already checks the dictionary
+            return IsConnected(guid);
         }
 
         /// <summary>
@@ -1080,7 +1251,37 @@
         /// <returns>True if connected.</returns>
         public bool IsConnected(Guid guid)
         {
-            return ClientExists(guid);
+            long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+            Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                CavemanTcpInstrumentation.RoleServer,
+                CavemanTcpInstrumentation.OperationIsConnected,
+                _Ssl,
+                ActivityKind.Internal);
+            CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+            string telemetryStatus = CavemanTcpInstrumentation.StatusSuccess;
+
+            try
+            {
+                bool exists = ClientExists(guid);
+                if (!exists) telemetryStatus = CavemanTcpInstrumentation.StatusClientNotFound;
+                return exists;
+            }
+            catch (Exception e)
+            {
+                telemetryStatus = CavemanTcpInstrumentation.ToStatus(e);
+                CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationIsConnected, e, telemetryActivity);
+                throw;
+            }
+            finally
+            {
+                CavemanTcpInstrumentation.RecordOperation(
+                    CavemanTcpInstrumentation.RoleServer,
+                    CavemanTcpInstrumentation.OperationIsConnected,
+                    telemetryStatus,
+                    telemetryStart);
+                CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus);
+                if (telemetryActivity != null) telemetryActivity.Dispose();
+            }
         }
 
         #endregion
@@ -1114,6 +1315,15 @@
         {
             if (disposing)
             {
+                long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+                Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                    CavemanTcpInstrumentation.RoleServer,
+                    CavemanTcpInstrumentation.OperationDispose,
+                    _Ssl,
+                    ActivityKind.Internal);
+                CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+                string telemetryStatus = CavemanTcpInstrumentation.StatusSuccess;
+
                 Logger?.Invoke(_Header + "disposing");
 
                 try
@@ -1125,6 +1335,7 @@
                             foreach (KeyValuePair<Guid, ClientMetadata> curr in _Clients)
                             {
                                 curr.Value.Dispose();
+                                CavemanTcpInstrumentation.RecordConnectionClosed(CavemanTcpInstrumentation.RoleServer, _Ssl, DisconnectReason.Normal);
                                 Logger?.Invoke(_Header + "disconnected client " + curr.Value.ToString());
                             }
 
@@ -1158,6 +1369,8 @@
                 }
                 catch (Exception e)
                 {
+                    telemetryStatus = CavemanTcpInstrumentation.ToStatus(e);
+                    CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationDispose, e, telemetryActivity);
                     Logger?.Invoke(_Header + "dispose exception:" +
                         Environment.NewLine +
                         e.ToString() +
@@ -1167,6 +1380,13 @@
                 finally
                 {
                     _Events.ClearAllEventHandlers();
+                    CavemanTcpInstrumentation.RecordOperation(
+                        CavemanTcpInstrumentation.RoleServer,
+                        CavemanTcpInstrumentation.OperationDispose,
+                        telemetryStatus,
+                        telemetryStart);
+                    CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus);
+                    if (telemetryActivity != null) telemetryActivity.Dispose();
                 }
 
                 _IsListening = false;
@@ -1283,56 +1503,93 @@
                     tcpClient.NoDelay = true;
 
                     string clientIpPort = tcpClient.Client.RemoteEndPoint.ToString();
+                    long acceptTelemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+                    Activity acceptTelemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                        CavemanTcpInstrumentation.RoleServer,
+                        CavemanTcpInstrumentation.OperationAccept,
+                        _Ssl,
+                        ActivityKind.Server);
+                    CavemanTcpInstrumentation.SetEndpoint(acceptTelemetryActivity, _ListenerIp, _Port);
+                    string acceptTelemetryStatus = CavemanTcpInstrumentation.StatusSuccess;
 
-                    client = new ClientMetadata(tcpClient);
-                    CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, client.Token);
-
-                    string clientIp = null;
-                    int clientPort = 0;
-                    Common.ParseIpPort(clientIpPort, out clientIp, out clientPort);
-
-                    if (!IsClientPermitted(clientIp))
+                    try
                     {
-                        Logger?.Invoke($"{_Header}rejecting connection from {clientIp} (not permitted)");
-                        _Events.HandleClientDeclined(this, new ClientDeclinedEventArgs(clientIpPort));
-                        client.Dispose();
-                        continue;
-                    }
+                        client = new ClientMetadata(tcpClient);
+                        CavemanTcpInstrumentation.SetClient(acceptTelemetryActivity, client);
+                        CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_Token, client.Token);
 
-                    if (IsClientBlocked(clientIp))
+                        string clientIp = null;
+                        int clientPort = 0;
+                        Common.ParseIpPort(clientIpPort, out clientIp, out clientPort);
+
+                        if (!IsClientPermitted(clientIp))
+                        {
+                            acceptTelemetryStatus = CavemanTcpInstrumentation.StatusNotPermitted;
+                            CavemanTcpInstrumentation.RecordConnectionDeclined(acceptTelemetryStatus);
+                            Logger?.Invoke($"{_Header}rejecting connection from {clientIp} (not permitted)");
+                            _Events.HandleClientDeclined(this, new ClientDeclinedEventArgs(clientIpPort));
+                            linkedCts.Dispose();
+                            client.Dispose();
+                            continue;
+                        }
+
+                        if (IsClientBlocked(clientIp))
+                        {
+                            acceptTelemetryStatus = CavemanTcpInstrumentation.StatusBlocked;
+                            CavemanTcpInstrumentation.RecordConnectionDeclined(acceptTelemetryStatus);
+                            Logger?.Invoke($"{_Header}rejecting connection from {clientIp} (blocked)");
+                            _Events.HandleClientDeclined(this, new ClientDeclinedEventArgs(clientIpPort));
+                            linkedCts.Dispose();
+                            client.Dispose();
+                            continue;
+                        }
+
+                        if (!IsClientAuthorized(clientIp, clientPort))
+                        {
+                            acceptTelemetryStatus = CavemanTcpInstrumentation.StatusAuthorizationRejected;
+                            CavemanTcpInstrumentation.RecordConnectionDeclined(acceptTelemetryStatus);
+                            Logger?.Invoke($"{_Header}rejecting connection from {clientIpPort} (authorization callback)");
+                            _Events.HandleClientDeclined(this, new ClientDeclinedEventArgs(clientIpPort));
+                            linkedCts.Dispose();
+                            client.Dispose();
+                            continue;
+                        }
+
+                        AddClient(client);
+
+                        if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives(tcpClient);
+
+                        var _ = HandleClientConnection(client, linkedCts.Token)
+                            .ContinueWith(x => linkedCts.Dispose())
+                            .ConfigureAwait(false);
+
+                        #region Check-for-Maximum-Connections
+
+                        if (GetClientCount() >= _Settings.MaxConnections)
+                        {
+                            Logger?.Invoke($"{_Header}maximum connections {_Settings.MaxConnections} met (currently {GetClientCount()} connections), pausing");
+                            _IsListening = false;
+                            _Listener.Stop();
+                        }
+
+                        #endregion
+                    }
+                    catch (Exception e)
                     {
-                        Logger?.Invoke($"{_Header}rejecting connection from {clientIp} (blocked)");
-                        _Events.HandleClientDeclined(this, new ClientDeclinedEventArgs(clientIpPort));
-                        client.Dispose();
-                        continue;
+                        acceptTelemetryStatus = CavemanTcpInstrumentation.ToStatus(e);
+                        CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationAccept, e, acceptTelemetryActivity);
+                        throw;
                     }
-
-                    if (!IsClientAuthorized(clientIp, clientPort))
+                    finally
                     {
-                        Logger?.Invoke($"{_Header}rejecting connection from {clientIpPort} (authorization callback)");
-                        _Events.HandleClientDeclined(this, new ClientDeclinedEventArgs(clientIpPort));
-                        client.Dispose();
-                        continue;
+                        CavemanTcpInstrumentation.RecordOperation(
+                            CavemanTcpInstrumentation.RoleServer,
+                            CavemanTcpInstrumentation.OperationAccept,
+                            acceptTelemetryStatus,
+                            acceptTelemetryStart);
+                        CavemanTcpInstrumentation.CompleteActivity(acceptTelemetryActivity, acceptTelemetryStatus);
+                        if (acceptTelemetryActivity != null) acceptTelemetryActivity.Dispose();
                     }
-
-                    AddClient(client);
-
-                    if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives(tcpClient);
-
-                    var _ = HandleClientConnection(client, linkedCts.Token)
-                        .ContinueWith(x => linkedCts.Dispose())
-                        .ConfigureAwait(false);
-
-                    #region Check-for-Maximum-Connections
-
-                    if (GetClientCount() >= _Settings.MaxConnections)
-                    {
-                        Logger?.Invoke($"{_Header}maximum connections {_Settings.MaxConnections} met (currently {GetClientCount()} connections), pausing");
-                        _IsListening = false;
-                        _Listener.Stop();
-                    }
-
-                    #endregion
                 }
                 catch (TaskCanceledException)
                 {
@@ -1409,6 +1666,16 @@
 
         private async Task<bool> StartTls(ClientMetadata client)
         {
+            long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+            Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                CavemanTcpInstrumentation.RoleServer,
+                CavemanTcpInstrumentation.OperationTls,
+                _Ssl,
+                ActivityKind.Server);
+            CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+            CavemanTcpInstrumentation.SetClient(telemetryActivity, client);
+            string telemetryStatus = CavemanTcpInstrumentation.StatusSuccess;
+
             try
             {
                 await client.SslStream.AuthenticateAsServerAsync(
@@ -1420,18 +1687,21 @@
                 if (!client.SslStream.IsEncrypted)
                 {
                     Logger?.Invoke(_Header + "client " + client.IpPort + " not encrypted, disconnecting");
+                    telemetryStatus = CavemanTcpInstrumentation.StatusDeclined;
                     return false;
                 }
 
                 if (!client.SslStream.IsAuthenticated)
                 {
                     Logger?.Invoke(_Header + "client " + client.IpPort + " not SSL/TLS authenticated, disconnecting");
+                    telemetryStatus = CavemanTcpInstrumentation.StatusDeclined;
                     return false;
                 }
 
                 if (_Settings.MutuallyAuthenticate && !client.SslStream.IsMutuallyAuthenticated)
                 {
                     Logger?.Invoke(_Header + "client " + client.IpPort + " failed mutual authentication, disconnecting");
+                    telemetryStatus = CavemanTcpInstrumentation.StatusDeclined;
                     return false;
                 }
 
@@ -1439,11 +1709,26 @@
             }
             catch (TaskCanceledException)
             {
-
+                telemetryStatus = CavemanTcpInstrumentation.StatusCanceled;
             }
             catch (OperationCanceledException)
             {
-
+                telemetryStatus = CavemanTcpInstrumentation.StatusCanceled;
+            }
+            catch (Exception e)
+            {
+                telemetryStatus = CavemanTcpInstrumentation.ToStatus(e);
+                CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationTls, e, telemetryActivity);
+            }
+            finally
+            {
+                CavemanTcpInstrumentation.RecordOperation(
+                    CavemanTcpInstrumentation.RoleServer,
+                    CavemanTcpInstrumentation.OperationTls,
+                    telemetryStatus,
+                    telemetryStart);
+                CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus);
+                if (telemetryActivity != null) telemetryActivity.Dispose();
             }
 
             return false;
@@ -1582,42 +1867,66 @@
 
         private async Task<WriteResult> ExecuteWriteAsync(Guid guid, int timeoutMs, CancellationToken callerToken, Func<ClientMetadata, Stream, CancellationToken, Task<long>> writer)
         {
-            ClientMetadata client = GetClient(guid);
-            if (client == null) return new WriteResult(WriteResultStatus.ClientNotFound, 0);
+            long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+            Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                CavemanTcpInstrumentation.RoleServer,
+                CavemanTcpInstrumentation.OperationSend,
+                _Ssl,
+                ActivityKind.Internal);
+            CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+            CavemanTcpInstrumentation.SetTimeout(telemetryActivity, timeoutMs);
 
-            WriteResult result = new WriteResult(WriteResultStatus.Success, 0);
+            ClientMetadata client = GetClient(guid);
+            if (client != null) CavemanTcpInstrumentation.SetClient(telemetryActivity, client);
+
+            WriteResult result = client == null ?
+                new WriteResult(WriteResultStatus.ClientNotFound, 0) :
+                new WriteResult(WriteResultStatus.Success, 0);
             bool semaphoreHeld = false;
 
-            using (CancellationTokenSource linkedCts = CreateOperationTokenSource(client.Token, callerToken, timeoutMs))
+            try
             {
-                try
-                {
-                    await client.WriteSemaphore.WaitAsync(linkedCts.Token).ConfigureAwait(false);
-                    semaphoreHeld = true;
+                if (client == null) return result;
 
-                    Stream transport = GetClientTransportStream(client);
-                    long bytesWritten = await writer(client, transport, linkedCts.Token).ConfigureAwait(false);
+                using (CancellationTokenSource linkedCts = CreateOperationTokenSource(client.Token, callerToken, timeoutMs))
+                {
+                    try
+                    {
+                        await client.WriteSemaphore.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+                        semaphoreHeld = true;
 
-                    result.BytesWritten = bytesWritten;
-                    _Statistics.AddSentBytes(bytesWritten);
-                    return result;
+                        Stream transport = GetClientTransportStream(client);
+                        long bytesWritten = await writer(client, transport, linkedCts.Token).ConfigureAwait(false);
+
+                        result.BytesWritten = bytesWritten;
+                        _Statistics.AddSentBytes(bytesWritten);
+                        return result;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        result.Status = GetWriteCancellationStatus(client, timeoutMs, callerToken);
+                        if (result.Status == WriteResultStatus.Disconnected) RemoveAndDisposeClient(guid);
+                        return result;
+                    }
+                    catch (Exception e)
+                    {
+                        result.Status = WriteResultStatus.Disconnected;
+                        CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationSend, e, telemetryActivity);
+                        RemoveAndDisposeClient(guid);
+                        return result;
+                    }
+                    finally
+                    {
+                        if (semaphoreHeld) client.WriteSemaphore.Release();
+                    }
                 }
-                catch (OperationCanceledException)
-                {
-                    result.Status = GetWriteCancellationStatus(client, timeoutMs, callerToken);
-                    if (result.Status == WriteResultStatus.Disconnected) RemoveAndDisposeClient(guid);
-                    return result;
-                }
-                catch (Exception)
-                {
-                    result.Status = WriteResultStatus.Disconnected;
-                    RemoveAndDisposeClient(guid);
-                    return result;
-                }
-                finally
-                {
-                    if (semaphoreHeld) client.WriteSemaphore.Release();
-                }
+            }
+            finally
+            {
+                string telemetryStatus = CavemanTcpInstrumentation.ToStatus(result.Status);
+                CavemanTcpInstrumentation.RecordWrite(CavemanTcpInstrumentation.RoleServer, telemetryStatus, result.BytesWritten, telemetryStart);
+                CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus, result.BytesWritten);
+                if (telemetryActivity != null) telemetryActivity.Dispose();
             }
         }
 
@@ -1650,54 +1959,83 @@
             if (count < 1) return new ReadResult(ReadResultStatus.Success, 0, null);
             if (count > Int32.MaxValue) throw new ArgumentOutOfRangeException(nameof(count), "Count must not exceed Int32.MaxValue.");
 
-            ClientMetadata client = GetClient(guid);
-            if (client == null) return new ReadResult(ReadResultStatus.ClientNotFound, 0, null);
+            long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+            Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                CavemanTcpInstrumentation.RoleServer,
+                CavemanTcpInstrumentation.OperationRead,
+                _Ssl,
+                ActivityKind.Internal);
+            CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+            CavemanTcpInstrumentation.SetTimeout(telemetryActivity, timeoutMs);
 
+            ClientMetadata client = GetClient(guid);
+            if (client != null) CavemanTcpInstrumentation.SetClient(telemetryActivity, client);
+
+            ReadResult result = client == null ?
+                new ReadResult(ReadResultStatus.ClientNotFound, 0, null) :
+                new ReadResult(ReadResultStatus.Success, 0, null);
             bool semaphoreHeld = false;
             int totalCount = (int)count;
             byte[] data = new byte[totalCount];
             int offset = 0;
 
-            using (CancellationTokenSource linkedCts = CreateOperationTokenSource(client.Token, token, timeoutMs))
+            try
             {
-                try
+                if (client == null) return result;
+
+                using (CancellationTokenSource linkedCts = CreateOperationTokenSource(client.Token, token, timeoutMs))
                 {
-                    await client.ReadSemaphore.WaitAsync(linkedCts.Token).ConfigureAwait(false);
-                    semaphoreHeld = true;
-
-                    Stream transport = GetClientTransportStream(client);
-
-                    while (offset < totalCount)
+                    try
                     {
-                        int readLength = Math.Min(_Settings.StreamBufferSize, totalCount - offset);
-                        int bytesRead = await transport.ReadAsync(data, offset, readLength, linkedCts.Token).ConfigureAwait(false);
-                        if (bytesRead <= 0)
+                        await client.ReadSemaphore.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+                        semaphoreHeld = true;
+
+                        Stream transport = GetClientTransportStream(client);
+
+                        while (offset < totalCount)
                         {
-                            RemoveAndDisposeClient(guid);
-                            return CreateReadResult(ReadResultStatus.Disconnected, data, offset);
+                            int readLength = Math.Min(_Settings.StreamBufferSize, totalCount - offset);
+                            int bytesRead = await transport.ReadAsync(data, offset, readLength, linkedCts.Token).ConfigureAwait(false);
+                            if (bytesRead <= 0)
+                            {
+                                RemoveAndDisposeClient(guid);
+                                result = CreateReadResult(ReadResultStatus.Disconnected, data, offset);
+                                return result;
+                            }
+
+                            offset += bytesRead;
+                            _Statistics.AddReceivedBytes(bytesRead);
                         }
 
-                        offset += bytesRead;
-                        _Statistics.AddReceivedBytes(bytesRead);
+                        result = CreateReadResult(ReadResultStatus.Success, data, offset);
+                        return result;
                     }
-
-                    return CreateReadResult(ReadResultStatus.Success, data, offset);
+                    catch (OperationCanceledException)
+                    {
+                        ReadResultStatus status = GetReadCancellationStatus(client, timeoutMs, token);
+                        if (status == ReadResultStatus.Disconnected) RemoveAndDisposeClient(guid);
+                        result = CreateReadResult(status, data, offset);
+                        return result;
+                    }
+                    catch (Exception e)
+                    {
+                        CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationRead, e, telemetryActivity);
+                        RemoveAndDisposeClient(guid);
+                        result = CreateReadResult(ReadResultStatus.Disconnected, data, offset);
+                        return result;
+                    }
+                    finally
+                    {
+                        if (semaphoreHeld) client.ReadSemaphore.Release();
+                    }
                 }
-                catch (OperationCanceledException)
-                {
-                    ReadResultStatus status = GetReadCancellationStatus(client, timeoutMs, token);
-                    if (status == ReadResultStatus.Disconnected) RemoveAndDisposeClient(guid);
-                    return CreateReadResult(status, data, offset);
-                }
-                catch (Exception)
-                {
-                    RemoveAndDisposeClient(guid);
-                    return CreateReadResult(ReadResultStatus.Disconnected, data, offset);
-                }
-                finally
-                {
-                    if (semaphoreHeld) client.ReadSemaphore.Release();
-                }
+            }
+            finally
+            {
+                string telemetryStatus = CavemanTcpInstrumentation.ToStatus(result.Status);
+                CavemanTcpInstrumentation.RecordRead(CavemanTcpInstrumentation.RoleServer, telemetryStatus, result.BytesRead, telemetryStart);
+                CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus, result.BytesRead);
+                if (telemetryActivity != null) telemetryActivity.Dispose();
             }
         }
 
@@ -1785,6 +2123,11 @@
 
         private void RemoveAndDisposeClient(Guid guid)
         {
+            RemoveAndDisposeClient(guid, DisconnectReason.Normal);
+        }
+
+        private void RemoveAndDisposeClient(Guid guid, DisconnectReason reason)
+        {
             ClientMetadata client = null;
 
             lock (_ClientsLock)
@@ -1799,6 +2142,7 @@
             if (client != null)
             {
                 client.Dispose();
+                CavemanTcpInstrumentation.RecordConnectionClosed(CavemanTcpInstrumentation.RoleServer, _Ssl, reason);
                 Logger?.Invoke(_Header + "removed: " + client.ToString());
             }
         }
@@ -1823,6 +2167,7 @@
                 Logger?.Invoke(_Header + "adding client " + client.ToString());
                 _Clients.Add(client.Guid, client);
                 _ClientIdsByIpPort[client.IpPort] = client.Guid;
+                CavemanTcpInstrumentation.RecordConnectionOpened(CavemanTcpInstrumentation.RoleServer, _Ssl);
             }
         }
 
@@ -1878,15 +2223,38 @@
         {
             if (_Callbacks?.AuthorizeConnection == null) return true;
 
+            long telemetryStart = CavemanTcpInstrumentation.GetTimestamp();
+            Activity telemetryActivity = CavemanTcpInstrumentation.StartActivity(
+                CavemanTcpInstrumentation.RoleServer,
+                CavemanTcpInstrumentation.OperationAuthorizeConnection,
+                _Ssl,
+                ActivityKind.Internal);
+            CavemanTcpInstrumentation.SetEndpoint(telemetryActivity, _ListenerIp, _Port);
+            string telemetryStatus = CavemanTcpInstrumentation.StatusSuccess;
+
             try
             {
-                return _Callbacks.AuthorizeConnection(clientIp, clientPort);
+                bool authorized = _Callbacks.AuthorizeConnection(clientIp, clientPort);
+                if (!authorized) telemetryStatus = CavemanTcpInstrumentation.StatusAuthorizationRejected;
+                return authorized;
             }
             catch (Exception e)
             {
+                telemetryStatus = CavemanTcpInstrumentation.ToStatus(e);
+                CavemanTcpInstrumentation.RecordException(CavemanTcpInstrumentation.RoleServer, CavemanTcpInstrumentation.OperationAuthorizeConnection, e, telemetryActivity);
                 Logger?.Invoke($"{_Header}authorization callback exception for {clientIp}:{clientPort}: {e.Message}");
                 _Events.HandleExceptionEncountered(this, e);
                 return false;
+            }
+            finally
+            {
+                CavemanTcpInstrumentation.RecordOperation(
+                    CavemanTcpInstrumentation.RoleServer,
+                    CavemanTcpInstrumentation.OperationAuthorizeConnection,
+                    telemetryStatus,
+                    telemetryStart);
+                CavemanTcpInstrumentation.CompleteActivity(telemetryActivity, telemetryStatus);
+                if (telemetryActivity != null) telemetryActivity.Dispose();
             }
         }
 

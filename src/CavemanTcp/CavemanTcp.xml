@@ -929,6 +929,67 @@
             Reset statistics other than StartTime and UpTime.
             </summary>
         </member>
+        <member name="T:CavemanTcp.CavemanTcpTelemetry">
+            <summary>
+            Telemetry source names and metric instrument names emitted by CavemanTcp.
+            Subscribe to <see cref="F:CavemanTcp.CavemanTcpTelemetry.MeterName"/> for metrics and <see cref="F:CavemanTcp.CavemanTcpTelemetry.ActivitySourceName"/> for traces.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpTelemetry.MeterName">
+            <summary>
+            Stable meter name used by CavemanTcp metrics.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpTelemetry.ActivitySourceName">
+            <summary>
+            Stable activity source name used by CavemanTcp traces.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpTelemetry.OperationsMetricName">
+            <summary>
+            Count of completed CavemanTcp operations.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpTelemetry.OperationDurationMetricName">
+            <summary>
+            Duration of CavemanTcp operations, in seconds.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpTelemetry.BytesSentMetricName">
+            <summary>
+            Number of bytes sent through CavemanTcp.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpTelemetry.BytesReceivedMetricName">
+            <summary>
+            Number of bytes received through CavemanTcp.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpTelemetry.ConnectionsOpenedMetricName">
+            <summary>
+            Number of accepted or established CavemanTcp connections.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpTelemetry.ConnectionsClosedMetricName">
+            <summary>
+            Number of closed CavemanTcp connections.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpTelemetry.ActiveConnectionsMetricName">
+            <summary>
+            Number of currently active CavemanTcp connections.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpTelemetry.ConnectionsDeclinedMetricName">
+            <summary>
+            Number of declined CavemanTcp server connections.
+            </summary>
+        </member>
+        <member name="F:CavemanTcp.CavemanTcpTelemetry.ExceptionsMetricName">
+            <summary>
+            Number of exceptions observed by CavemanTcp operations.
+            </summary>
+        </member>
         <member name="T:CavemanTcp.ClientConnectedEventArgs">
             <summary>
             Arguments for client connection events.
