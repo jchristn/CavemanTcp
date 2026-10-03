@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CavemanTcp\CavemanTcp.csproj" />
-    <PackageReference Include="Touchstone.Core" Version="0.1.12" />
+    <PackageReference Include="Touchstone.Core" Version="0.2.0" />
   </ItemGroup>
 
   <ItemGroup>

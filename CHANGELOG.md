@@ -2,6 +2,15 @@
 
 ## Current Version
 
+v2.1.2
+
+- Fix intermittent `ObjectDisposedException` in `CavemanTcpClient.Connect` on .NET Core: a synchronously-completed connect can be backed by a shared cached task, and closing its wait handle broke subsequent connects
+- Add `ManyClientsCanConnectSequentially` regression scenario (66 shared scenarios)
+- Update `System.Diagnostics.DiagnosticSource` 10.0.11 -> 10.0.12 and `Microsoft.SourceLink.GitHub` 10.0.400 -> 10.0.401
+- Update test dependencies: Touchstone 0.1.12 -> 0.2.0, NUnit 4.6.1 -> 5.0.0, NUnit3TestAdapter 6.2.0 -> 6.3.0, Microsoft.NET.Test.Sdk 18.9.0 -> 18.10.1
+
+## Previous Versions
+
 v2.1.1
 
 - Add BCL metrics and tracing with stable `CavemanTcp` meter/activity source names
@@ -17,8 +26,6 @@ v2.1.1
 - Add IP:port lookup cache and fix rejected-connection cleanup
 - Replace `Test.AutomatedTest` with Touchstone-based `Test.Automated`, `Test.Shared`, `Test.XUnit`, and `Test.NUnit`
 - Expand automated coverage to 62 shared scenarios across positive, negative, concurrency, cancellation, and lifecycle cases
-
-## Previous Versions
 
 v1.3.3
 

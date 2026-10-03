@@ -431,6 +431,39 @@ namespace Test.Shared
             }
         }
 
+        public static async Task ManyClientsCanConnectSequentially()
+        {
+            int port = GetNextPort();
+            CavemanTcpServer server = new CavemanTcpServer(_Hostname, port, false, null, null);
+
+            try
+            {
+                server.Start();
+                await WaitForServerListeningAsync(server).ConfigureAwait(false);
+
+                // Loopback connects frequently complete synchronously; each Connect must not
+                // invalidate wait handles that a subsequent Connect relies on.
+                for (int i = 0; i < 25; i++)
+                {
+                    CavemanTcpClient client = new CavemanTcpClient(_Hostname, port, false, null, null);
+
+                    try
+                    {
+                        client.Connect(5);
+                        TestAssert.True(client.IsConnected);
+                    }
+                    finally
+                    {
+                        SafeDispose(client);
+                    }
+                }
+            }
+            finally
+            {
+                SafeDispose(server);
+            }
+        }
+
         public static Task ClientSendReturnsDisconnectedWhenNotConnected()
         {
             CavemanTcpClient client = new CavemanTcpClient(_Hostname, GetNextPort(), false, null, null);

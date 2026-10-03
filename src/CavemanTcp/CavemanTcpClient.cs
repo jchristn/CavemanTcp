@@ -325,12 +325,18 @@
                 if (_Keepalive.EnableTcpKeepAlives) EnableKeepalives();
 
                 IAsyncResult ar = _Client.BeginConnect(_ServerIp, _ServerPort, null, null);
-                wh = ar.AsyncWaitHandle;
 
-                if (!ar.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(timeoutSeconds), false))
+                // A synchronously-completed connect may be backed by a shared, cached completed task
+                // on .NET Core; its wait handle must not be accessed or closed, so only wait when pending.
+                if (!ar.IsCompleted)
                 {
-                    _Client.Close();
-                    throw new TimeoutException("Timeout connecting to " + _ServerIp + ":" + _ServerPort);
+                    wh = ar.AsyncWaitHandle;
+
+                    if (!wh.WaitOne(TimeSpan.FromSeconds(timeoutSeconds), false))
+                    {
+                        _Client.Close();
+                        throw new TimeoutException("Timeout connecting to " + _ServerIp + ":" + _ServerPort);
+                    }
                 }
 
                 _Client.EndConnect(ar); 

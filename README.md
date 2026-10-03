@@ -20,6 +20,11 @@ Client and server connection monitors are available to detect graceful closes an
 
 As of v1.3.0, TCP keepalive support was added for .NET Core and .NET Framework; unfortunately .NET Standard does not offer this support, so it is not present for apps using CavemanTcp targeted to .NET Standard.
 
+## New in v2.1.2
+
+- Fix intermittent `ObjectDisposedException` from `CavemanTcpClient.Connect` on .NET Core when a prior connect completed synchronously
+- Dependency updates (`System.Diagnostics.DiagnosticSource` 10.0.12, Source Link 10.0.401; test stack on Touchstone 0.2.0 and NUnit 5)
+
 ## New in v2.1.1
 
 - BCL metrics and tracing through `System.Diagnostics.Metrics.Meter` and `System.Diagnostics.ActivitySource`
